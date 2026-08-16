@@ -297,7 +297,7 @@ export function EventPhotoUploader({
         <label
           htmlFor={cameraInputId}
           aria-disabled={controlsDisabled}
-          className="flex min-h-12 flex-1 cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-5 py-3 font-medium text-white aria-disabled:pointer-events-none aria-disabled:opacity-50"
+          className="flex min-h-12 flex-1 cursor-pointer items-center justify-center rounded-xl bg-[var(--event-primary)] px-5 py-3 font-medium text-white aria-disabled:pointer-events-none aria-disabled:opacity-50"
         >
           Tirar foto
         </label>
@@ -346,7 +346,7 @@ export function EventPhotoUploader({
             </button>
             <button
               type="button"
-              className="min-h-12 flex-1 rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white disabled:opacity-50"
+              className="min-h-12 flex-1 rounded-xl bg-[var(--event-primary)] px-4 py-3 font-semibold text-white disabled:opacity-50"
               disabled={controlsDisabled}
               onClick={() => void uploadSelectedPhoto()}
             >

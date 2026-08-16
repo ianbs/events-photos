@@ -55,11 +55,7 @@ pnpm supabase db lint --local
 
 O `db reset` é destrutivo apenas para a stack local. Nunca execute `db reset --linked` em produção.
 
-Este projeto de teste recebeu as primeiras migrations manualmente pelo SQL Editor. Depois de autenticar e vincular a CLI, compare `pnpm supabase migration list` e repare o histórico remoto antes do primeiro `db push`, marcando como aplicadas somente as versões que o catálogo confirmar:
-
-```bash
-pnpm supabase migration repair 20260815000000 20260816005040 20260816012727 20260816022528 --status applied
-```
+O histórico remoto deste projeto de teste está sincronizado com as migrations do repositório. Antes de alterações futuras, confirme que as colunas `Local` e `Remote` permanecem alinhadas com `pnpm supabase migration list --project-ref SEU_PROJECT_REF`.
 
 ### Banco e segurança
 
@@ -69,6 +65,7 @@ pnpm supabase migration repair 20260815000000 20260816005040 20260816012727 2026
 - O token do convidado é validado no servidor e a consulta de fotos sempre usa `event_id + guest_id` obtidos pela autorização.
 - `admin_users` é uma allowlist explícita ligada a `auth.users`. Um login válido sem membership recebe acesso proibido.
 - O bucket `event-photos` é privado, limitado a 15 MiB e aceita somente JPEG, PNG, WebP, HEIC e HEIF.
+- O bucket `event-branding` é privado, limitado a 5 MiB e aceita somente JPEG, PNG e WebP.
 - URLs para leitura e download são assinadas e expiram em até cinco minutos.
 
 ### Criar o primeiro administrador
@@ -109,6 +106,12 @@ O navegador mantém um UUID criptograficamente seguro no `localStorage`, isolado
 
 O Supabase Auth mantém a sessão em cookies SSR atualizados pelo `proxy.ts`. Layouts e APIs verificam a sessão e a allowlist. Abrir e baixar redirecionam para URLs assinadas de 60 segundos. A exclusão remove o objeto do Storage antes do registro; se o banco falhar, repetir a operação é seguro e conclui a limpeza.
 
+Administradores podem criar eventos em `/admin/events/new` e editá-los em `/admin/events/[eventId]/edit`. Nome, slug, data e status são validados novamente no servidor antes da escrita privilegiada; um slug duplicado é tratado como conflito. Alterar o slug invalida links e QR Codes anteriores, por isso a interface exibe um alerta. A galeria administrativa separa as fotos por evento.
+
+Na edição também é possível configurar capa, logotipo, cor principal e cor de destaque. Os uploads usam URLs assinadas, são confirmados no servidor por tamanho, MIME e assinatura binária, e os arquivos substituídos são removidos depois da atualização do banco. A página pública usa URLs temporárias para ler o bucket privado e mantém o tema padrão quando não há personalização.
+
+As grades usam o otimizador de imagens do Next.js sobre as URLs temporárias do bucket privado. Assim, o navegador recebe thumbnails redimensionadas em vez dos arquivos originais. A abertura e o download continuam usando o objeto original. Em produção, acompanhe também a cota de Image Optimization da Vercel.
+
 ## Deploy na Vercel
 
 1. Importe o repositório na Vercel e mantenha o preset Next.js.
@@ -130,6 +133,7 @@ Na véspera:
 - testar a sessão administrativa em janela anônima;
 - confirmar espaço e egress disponíveis no Supabase e limites do plano Vercel;
 - verificar Security/Performance Advisors e corrigir alertas aplicáveis;
+- habilitar **Leaked Password Protection** no Supabase Auth; o advisor remoto alerta quando essa proteção está desativada;
 - manter uma cópia segura da credencial administrativa e um segundo dispositivo carregado.
 
 Durante o evento:

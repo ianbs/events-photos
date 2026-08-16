@@ -31,27 +31,39 @@ export type Database = {
       }
       events: {
         Row: {
+          accent_color: string
+          cover_storage_path: string | null
           created_at: string
           event_date: string
           id: string
           is_active: boolean
+          logo_storage_path: string | null
           name: string
+          primary_color: string
           slug: string
         }
         Insert: {
+          accent_color?: string
+          cover_storage_path?: string | null
           created_at?: string
           event_date: string
           id?: string
           is_active?: boolean
+          logo_storage_path?: string | null
           name: string
+          primary_color?: string
           slug: string
         }
         Update: {
+          accent_color?: string
+          cover_storage_path?: string | null
           created_at?: string
           event_date?: string
           id?: string
           is_active?: boolean
+          logo_storage_path?: string | null
           name?: string
+          primary_color?: string
           slug?: string
         }
         Relationships: []

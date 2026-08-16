@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(13);
+select plan(17);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.events'::regclass),
@@ -63,6 +63,46 @@ select ok(
       and indexname = 'photos_event_id_guest_id_idx'
   ),
   'the composite guest foreign key has a covering index'
+);
+
+select ok(
+  exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'events'
+      and column_name = 'primary_color'
+      and is_nullable = 'NO'
+  ),
+  'events has a required primary color'
+);
+select ok(
+  exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.events'::regclass
+      and conname = 'events_primary_color_format_check'
+  ),
+  'event primary colors are constrained'
+);
+select ok(
+  exists (
+    select 1
+    from storage.buckets
+    where id = 'event-branding'
+      and not public
+      and file_size_limit = 5242880
+  ),
+  'event branding uses a private size-limited bucket'
+);
+select is(
+  (
+    select allowed_mime_types
+    from storage.buckets
+    where id = 'event-branding'
+  ),
+  array['image/jpeg', 'image/png', 'image/webp']::text[],
+  'event branding bucket restricts image MIME types'
 );
 
 select * from finish();

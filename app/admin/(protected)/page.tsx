@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { AdminPhotoGrid } from "@/components/admin-photo-grid";
@@ -7,7 +8,13 @@ import { listAdminEvents } from "@/lib/events/admin-event-service";
 import { createEventQrCode } from "@/lib/events/event-qr-code";
 import { listAdminPhotos } from "@/lib/photos/admin-photo-service";
 
-export default async function AdminDashboardPage() {
+type AdminDashboardPageProps = {
+  searchParams: Promise<{ event?: string }>;
+};
+
+export default async function AdminDashboardPage({
+  searchParams,
+}: AdminDashboardPageProps) {
   const admin = await getCurrentAdmin();
 
   if (!admin) {
@@ -18,6 +25,13 @@ export default async function AdminDashboardPage() {
     listAdminPhotos(),
     listAdminEvents(),
   ]);
+  const { event: eventStatus } = await searchParams;
+  const eventFeedback =
+    eventStatus === "created"
+      ? "Evento criado com sucesso."
+      : eventStatus === "updated"
+        ? "Evento atualizado com sucesso."
+        : null;
   const eventsWithQrCode = await Promise.all(
     events.map(async (event) => ({
       ...event,
@@ -27,14 +41,28 @@ export default async function AdminDashboardPage() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+      {eventFeedback ? (
+        <p className="mb-6 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-emerald-200">
+          {eventFeedback}
+        </p>
+      ) : null}
+
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="text-sm font-medium uppercase tracking-[0.16em] text-emerald-700">
             Administração
           </p>
-          <h1 className="mt-1 text-3xl font-semibold">Todas as fotos</h1>
+          <h1 className="mt-1 text-3xl font-semibold">Eventos e fotos</h1>
         </div>
-        <p className="text-sm text-slate-600">{photos.length} foto(s)</p>
+        <div className="flex items-center gap-4">
+          <p className="text-sm text-slate-600">{photos.length} foto(s)</p>
+          <Link
+            href="/admin/events/new"
+            className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-800"
+          >
+            Novo evento
+          </Link>
+        </div>
       </div>
 
       {eventsWithQrCode.length > 0 ? (
@@ -57,6 +85,9 @@ export default async function AdminDashboardPage() {
                 <a href={event.eventUrl} target="_blank" rel="noreferrer" className="mt-3 block text-sm text-emerald-700 underline">
                   Abrir evento
                 </a>
+                <Link href={`/admin/events/${event.id}/edit`} className="mt-2 block text-sm text-emerald-700 underline">
+                  Editar evento
+                </Link>
                 <a href={event.qrCodeDataUrl} download={`qr-${event.slug}.png`} className="mt-2 block text-sm text-slate-700 underline">
                   Baixar QR Code
                 </a>
@@ -67,6 +98,12 @@ export default async function AdminDashboardPage() {
       ) : null}
 
       <section className="mt-8">
+        <div className="mb-5">
+          <p className="text-sm font-medium uppercase tracking-[0.16em] text-emerald-700">
+            Acervo
+          </p>
+          <h2 className="mt-1 text-2xl font-semibold">Fotos por evento</h2>
+        </div>
         <AdminPhotoGrid photos={photos} />
       </section>
     </main>

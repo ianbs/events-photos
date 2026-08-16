@@ -1,5 +1,6 @@
 export type ApplicationErrorCode =
   | "VALIDATION_ERROR"
+  | "CONFLICT"
   | "UNAUTHORIZED"
   | "NOT_FOUND"
   | "FORBIDDEN"
@@ -18,6 +19,10 @@ export class ApplicationError extends Error {
 
 export function validationError(message: string) {
   return new ApplicationError("VALIDATION_ERROR", 400, message);
+}
+
+export function conflictError(message: string) {
+  return new ApplicationError("CONFLICT", 409, message);
 }
 
 export function unauthorizedError(message = "Autenticação necessária.") {

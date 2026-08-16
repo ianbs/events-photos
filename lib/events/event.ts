@@ -1,6 +1,10 @@
 export type EventSummary = {
+  accentColor: string;
+  coverImageUrl: string | null;
   id: string;
+  logoImageUrl: string | null;
   name: string;
+  primaryColor: string;
   slug: string;
   eventDate: string;
   isActive: boolean;

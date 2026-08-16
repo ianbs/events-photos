@@ -73,7 +73,7 @@ export function GuestPhotoGallery({
     <section className="mt-6 w-full rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-7">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <p className="text-sm font-medium uppercase tracking-[0.14em] text-emerald-700">
+          <p className="text-sm font-medium uppercase tracking-[0.14em] text-[var(--event-primary)]">
             Galeria do convidado
           </p>
           <h2 className="mt-1 text-2xl font-semibold">Minhas fotos</h2>
@@ -114,7 +114,6 @@ export function GuestPhotoGallery({
                   src={photo.signedUrl}
                   alt={photo.originalFilename}
                   fill
-                  unoptimized
                   sizes="(max-width: 640px) 50vw, 220px"
                   className="object-cover transition group-active:scale-[0.98]"
                 />

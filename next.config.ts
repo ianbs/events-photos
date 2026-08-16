@@ -1,6 +1,31 @@
 import type { NextConfig } from "next";
 
+function getSupabaseStoragePattern(): NonNullable<
+  NextConfig["images"]
+>["remotePatterns"] {
+  const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+  if (!rawUrl) {
+    return [];
+  }
+
+  const url = new URL(rawUrl);
+  const protocol = url.protocol === "http:" ? "http" : "https";
+
+  return [
+    {
+      hostname: url.hostname,
+      pathname: "/storage/v1/**",
+      port: url.port,
+      protocol,
+    },
+  ];
+}
+
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: getSupabaseStoragePattern(),
+  },
   reactStrictMode: true,
   async headers() {
     return [
