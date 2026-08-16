@@ -1,0 +1,3 @@
+-- Development seed data is currently idempotently defined by the historical
+-- seed_test_event migration. Keep this file so local `db reset` remains
+-- compatible with the CLI configuration without adding production users.

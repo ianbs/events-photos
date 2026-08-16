@@ -1,0 +1,45 @@
+{
+  "name": "events-photos",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "supabase:check": "node --env-file=.env.local scripts/check-supabase.mjs",
+    "supabase:types": "node scripts/generate-database-types.mjs",
+    "supabase:test:db": "supabase test db",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "dependencies": {
+    "@supabase/ssr": "0.12.4",
+    "@supabase/supabase-js": "2.112.3",
+    "client-only": "0.0.1",
+    "next": "16.3.1",
+    "qrcode": "1.5.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "server-only": "0.0.1",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "26.2.0",
+    "@types/qrcode": "1.5.6",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.3.1",
+    "supabase": "2.114.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  },
+  "packageManager": "pnpm@11.19.0"
+}
