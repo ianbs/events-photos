@@ -5,7 +5,7 @@ Aplicação web mobile-first para convidados fotografarem um evento e visualizar
 ## Stack e requisitos
 
 - Next.js 16, React 19, App Router, TypeScript estrito e Tailwind CSS 4
-- Supabase PostgreSQL, Auth e Storage privado
+- Supabase PostgreSQL e Auth; fotos em Supabase Storage ou storage compatível com S3
 - Vitest, pgTAP e ESLint
 - Vercel como alvo de produção
 - Node.js 22+, pnpm 11 e um projeto Supabase
@@ -30,8 +30,49 @@ Abra `http://localhost:3000/e/batizado-teste`. Nunca versione `.env.local`.
 | `SUPABASE_SECRET_KEY` | somente servidor | Secret key usada após validação e autorização server-side |
 | `NEXT_PUBLIC_APP_URL` | público | URL canônica, sem barra final; usada nos QR Codes |
 | `MAX_UPLOAD_SIZE_MB` | servidor | Limite de upload, no máximo 15 MiB |
+| `STORAGE_PROVIDER` | servidor | Storage das novas fotos: `supabase` (padrão) ou `s3` |
+| `S3_ENDPOINT` | servidor | Endpoint da API S3 do provedor selecionado |
+| `S3_REGION` | servidor | Região S3; use `auto` no Cloudflare R2 |
+| `S3_BUCKET` | servidor | Bucket privado que receberá as fotos |
+| `S3_ACCESS_KEY_ID` | servidor | ID da credencial com acesso ao bucket |
+| `S3_SECRET_ACCESS_KEY` | servidor | Segredo da credencial com acesso ao bucket |
+| `S3_FORCE_PATH_STYLE` | servidor | `true` para provedores que exigem URLs path-style; padrão `false` |
 
 A aplicação aceita `SUPABASE_SERVICE_ROLE_KEY` apenas como fallback legado. Nenhuma chave privilegiada possui prefixo `NEXT_PUBLIC_`.
+
+### Storage das fotos
+
+O Supabase continua sendo usado para banco, autenticação e identidade visual. Somente o acervo de fotos do evento pode ser movido para um storage S3-compatible. Essa fronteira funciona com AWS S3, Cloudflare R2, Backblaze B2, Wasabi e MinIO; para o plano gratuito, o R2 ou o B2 costumam ser opções mais adequadas que o Google Drive, que não é um object storage.
+
+Para usar Cloudflare R2, crie um bucket privado e uma credencial limitada a esse bucket, depois configure:
+
+```dotenv
+STORAGE_PROVIDER=s3
+S3_ENDPOINT=https://SEU_ACCOUNT_ID.r2.cloudflarestorage.com
+S3_REGION=auto
+S3_BUCKET=event-photos
+S3_ACCESS_KEY_ID=...
+S3_SECRET_ACCESS_KEY=...
+S3_FORCE_PATH_STYLE=false
+```
+
+O bucket precisa aceitar uploads diretos do domínio da aplicação. Exemplo de CORS (substitua as origens):
+
+```json
+[
+  {
+    "AllowedOrigins": [
+      "https://fotos.seudominio.com",
+      "http://localhost:3000"
+    ],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+Os uploads continuam indo diretamente do navegador para o bucket por URL assinada. O banco registra o provedor de cada foto; portanto, trocar `STORAGE_PROVIDER` afeta apenas novos uploads e as fotos anteriores continuam sendo lidas do Supabase. Para voltar temporariamente ao Supabase, use `STORAGE_PROVIDER=supabase` e mantenha as credenciais S3 enquanto houver fotos armazenadas nele.
 
 ## Supabase e migrations
 
@@ -64,7 +105,7 @@ O histórico remoto deste projeto de teste está sincronizado com as migrations 
 - `guests` e `photos` não possuem políticas públicas nem grants diretos para `anon`/`authenticated`.
 - O token do convidado é validado no servidor e a consulta de fotos sempre usa `event_id + guest_id` obtidos pela autorização.
 - `admin_users` é uma allowlist explícita ligada a `auth.users`. Um login válido sem membership recebe acesso proibido.
-- O bucket `event-photos` é privado, limitado a 15 MiB e aceita somente JPEG, PNG, WebP, HEIC e HEIF.
+- O bucket de fotos é privado; a aplicação limita cada arquivo a 15 MiB e aceita somente JPEG, PNG, WebP, HEIC e HEIF. No Supabase, essas restrições também existem no bucket.
 - O bucket `event-branding` é privado, limitado a 5 MiB e aceita somente JPEG, PNG e WebP.
 - URLs para leitura e download são assinadas e expiram em até cinco minutos.
 
@@ -115,7 +156,7 @@ As grades usam o otimizador de imagens do Next.js sobre as URLs temporárias do 
 ## Deploy na Vercel
 
 1. Importe o repositório na Vercel e mantenha o preset Next.js.
-2. Cadastre todas as cinco variáveis da tabela para **Production** e **Preview**, usando projetos Supabase separados quando possível.
+2. Cadastre as variáveis gerais e as do provedor de storage escolhido para **Production** e **Preview**, usando projetos Supabase separados quando possível.
 3. Defina `NEXT_PUBLIC_APP_URL` com o domínio HTTPS definitivo.
 4. Atualize **Authentication > URL Configuration** no Supabase com o mesmo domínio.
 5. Aplique migrations antes de promover o deploy.
@@ -131,7 +172,7 @@ Na véspera:
 - testar QR Code com a câmera nativa de um iPhone e de um Android em 4G/5G;
 - enviar JPEG, HEIC e uma imagem próxima do limite de 15 MiB;
 - testar a sessão administrativa em janela anônima;
-- confirmar espaço e egress disponíveis no Supabase e limites do plano Vercel;
+- confirmar espaço e egress disponíveis no storage configurado e limites do plano Vercel;
 - verificar Security/Performance Advisors e corrigir alertas aplicáveis;
 - habilitar **Leaked Password Protection** no Supabase Auth; o advisor remoto alerta quando essa proteção está desativada;
 - manter uma cópia segura da credencial administrativa e um segundo dispositivo carregado.
@@ -139,7 +180,7 @@ Na véspera:
 Durante o evento:
 
 - acompanhar erros 5xx e latência em **Vercel Logs**;
-- acompanhar Auth, Postgres, API e Storage em **Supabase Observability/Logs**;
+- acompanhar Auth, Postgres e API no Supabase, além das métricas do storage de fotos configurado;
 - não tornar o bucket público como solução emergencial;
 - se houver falha, registrar horário, rota, status e request ID antes de alterar configuração.
 
@@ -152,6 +193,7 @@ Depois do evento, revogue sessões administrativas desnecessárias, faça backup
 - `lib/events`, `lib/guests`, `lib/photos`: casos de uso e regras de domínio.
 - `lib/auth`: autenticação e autorização administrativa.
 - `lib/supabase`: clientes browser, SSR e privilegiado separados; o último é `server-only`.
+- `lib/storage`: abstração privada para Supabase Storage e provedores S3-compatible.
 - `lib/config`: leitura e validação centralizada do ambiente.
 - `types/database.ts`: contrato gerado pelo Supabase CLI.
 - `supabase/migrations`: schema, constraints, índices, RLS e Storage reproduzíveis.

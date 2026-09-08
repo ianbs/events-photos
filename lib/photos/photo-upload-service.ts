@@ -14,11 +14,15 @@ import {
   getExtensionForMimeType,
   isAllowedImageMimeType,
   normalizeOriginalFilename,
-  PHOTO_BUCKET,
   validateImageUpload,
 } from "@/lib/photos/upload-policy";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-import { readPrivateStorageObjectHeader } from "@/lib/storage/private-storage";
+import {
+  getConfiguredStorageProvider,
+  getPhotoStorage,
+  readPhotoObjectHeader,
+  type StorageProvider,
+} from "@/lib/storage/photo-storage";
 
 const photoIdSchema = z.string().uuid();
 
@@ -27,6 +31,10 @@ export type PhotoUploadInput = {
   originalFilename: string;
   mimeType: string;
   fileSize: number;
+};
+
+type PhotoUploadCompletionInput = PhotoUploadInput & {
+  storageProvider: StorageProvider;
 };
 
 function getMaximumUploadSizeBytes(): number {
@@ -74,11 +82,13 @@ function buildStoragePath(
   return `${guest.eventId}/${guest.guestId}/${photoId}.${extension}`;
 }
 
-async function removeStorageObject(path: string): Promise<void> {
-  const supabase = createAdminSupabaseClient();
-  const { error } = await supabase.storage.from(PHOTO_BUCKET).remove([path]);
-
-  if (error) {
+async function removeStorageObject(
+  provider: StorageProvider,
+  path: string,
+): Promise<void> {
+  try {
+    await getPhotoStorage(provider).remove(path);
+  } catch {
     console.error("Failed to clean up a Storage object");
   }
 }
@@ -95,22 +105,20 @@ export async function initializePhotoUpload(
     photoId,
     validatedInput.mimeType,
   );
-  const supabase = createAdminSupabaseClient();
-  const { data, error } = await supabase.storage
-    .from(PHOTO_BUCKET)
-    .createSignedUploadUrl(path, { upsert: false });
+  const provider = getConfiguredStorageProvider();
+  const upload = await getPhotoStorage(provider).createUpload(
+    path,
+    validatedInput.mimeType,
+    input.fileSize,
+  );
 
-  if (error || !data) {
-    throw infrastructureError();
-  }
-
-  return { photoId, path, token: data.token };
+  return { photoId, ...upload };
 }
 
 export async function completePhotoUpload(
   slug: string,
   untrustedPhotoId: string,
-  input: PhotoUploadInput,
+  input: PhotoUploadCompletionInput,
 ) {
   const photoId = validatePhotoId(untrustedPhotoId);
   const validatedInput = validateUploadInput(input);
@@ -120,6 +128,7 @@ export async function completePhotoUpload(
     photoId,
     validatedInput.mimeType,
   );
+  const storage = getPhotoStorage(input.storageProvider);
   const supabase = createAdminSupabaseClient();
   const { data: existingPhoto, error: existingPhotoError } = await supabase
     .from("photos")
@@ -137,11 +146,9 @@ export async function completePhotoUpload(
     return { photoId: existingPhoto.id };
   }
 
-  const { data: storedObject, error: storedObjectError } = await supabase.storage
-    .from(PHOTO_BUCKET)
-    .info(path);
+  const storedObject = await storage.getMetadata(path);
 
-  if (storedObjectError || !storedObject) {
+  if (!storedObject) {
     throw notFoundError("O arquivo enviado não foi encontrado.");
   }
 
@@ -161,21 +168,21 @@ export async function completePhotoUpload(
     observedValidation.mimeType !== validatedInput.mimeType ||
     observedSize !== input.fileSize
   ) {
-    await removeStorageObject(path);
+    await removeStorageObject(input.storageProvider, path);
     throw validationError("O arquivo armazenado não corresponde ao upload autorizado.");
   }
 
   let fileHeader: Uint8Array;
 
   try {
-    fileHeader = await readPrivateStorageObjectHeader(PHOTO_BUCKET, path);
+    fileHeader = await readPhotoObjectHeader(input.storageProvider, path);
   } catch {
-    await removeStorageObject(path);
+    await removeStorageObject(input.storageProvider, path);
     throw infrastructureError();
   }
 
   if (!imageSignatureMatchesMimeType(fileHeader, observedValidation.mimeType)) {
-    await removeStorageObject(path);
+    await removeStorageObject(input.storageProvider, path);
     throw validationError("O conteúdo do arquivo não corresponde a uma imagem permitida.");
   }
 
@@ -184,13 +191,14 @@ export async function completePhotoUpload(
     event_id: guest.eventId,
     guest_id: guest.guestId,
     storage_path: path,
+    storage_provider: input.storageProvider,
     original_filename: validatedInput.originalFilename,
     mime_type: observedValidation.mimeType,
     file_size: observedSize,
   });
 
   if (insertError) {
-    await removeStorageObject(path);
+    await removeStorageObject(input.storageProvider, path);
     throw infrastructureError();
   }
 
@@ -202,10 +210,11 @@ export async function cleanupPhotoUpload(
   untrustedPhotoId: string,
   guestToken: string,
   mimeType: string,
+  storageProvider: StorageProvider,
 ): Promise<void> {
   const photoId = validatePhotoId(untrustedPhotoId);
   const guest = await authorizeGuest(slug, guestToken);
   const path = buildStoragePath(guest, photoId, mimeType);
 
-  await removeStorageObject(path);
+  await removeStorageObject(storageProvider, path);
 }

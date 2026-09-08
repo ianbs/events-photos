@@ -130,6 +130,9 @@ Supabase PostgreSQL.
 
 Armazenamento de imagens
 
+Supabase Storage ou object storage compatível com S3, selecionado por
+configuração. O provedor de cada foto deve ser persistido para permitir a
+troca sem invalidar o acervo existente. A identidade visual permanece no
 Supabase Storage.
 
 Autenticação

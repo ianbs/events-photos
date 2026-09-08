@@ -107,6 +107,7 @@ export type Database = {
           mime_type: string
           original_filename: string
           storage_path: string
+          storage_provider: string
         }
         Insert: {
           created_at?: string
@@ -117,6 +118,7 @@ export type Database = {
           mime_type: string
           original_filename: string
           storage_path: string
+          storage_provider?: string
         }
         Update: {
           created_at?: string
@@ -127,6 +129,7 @@ export type Database = {
           mime_type?: string
           original_filename?: string
           storage_path?: string
+          storage_provider?: string
         }
         Relationships: [
           {
