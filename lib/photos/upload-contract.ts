@@ -9,18 +9,35 @@ export const initializeUploadRequestSchema = z.object({
   fileSize: z.number().int().positive(),
 });
 
-export const completeUploadRequestSchema = initializeUploadRequestSchema;
+const storageProviderSchema = z.enum(["supabase", "s3"]);
+
+export const completeUploadRequestSchema = initializeUploadRequestSchema.extend({
+  storageProvider: storageProviderSchema,
+});
 
 export const cleanupUploadRequestSchema = z.object({
   guestToken: guestTokenSchema,
   mimeType: z.string().min(1).max(100),
+  storageProvider: storageProviderSchema,
 });
 
-export const uploadInitializationResponseSchema = z.object({
-  photoId: z.string().uuid(),
-  path: z.string().min(1),
-  token: z.string().min(1),
-});
+export const uploadInitializationResponseSchema = z.discriminatedUnion(
+  "provider",
+  [
+    z.object({
+      photoId: z.string().uuid(),
+      path: z.string().min(1),
+      provider: z.literal("supabase"),
+      token: z.string().min(1),
+    }),
+    z.object({
+      photoId: z.string().uuid(),
+      path: z.string().min(1),
+      provider: z.literal("s3"),
+      uploadUrl: z.string().url(),
+    }),
+  ],
+);
 
 export const uploadCompletionResponseSchema = z.object({
   photoId: z.string().uuid(),

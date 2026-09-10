@@ -33,6 +33,8 @@ describe("environment configuration", () => {
 
     expect(environment.NEXT_PUBLIC_APP_URL).toBe("http://localhost:3000");
     expect(environment.MAX_UPLOAD_SIZE_MB).toBe(15);
+    expect(environment.STORAGE_PROVIDER).toBe("supabase");
+    expect(environment.S3_FORCE_PATH_STYLE).toBe(false);
   });
 
   it("rejects unsafe or malformed configuration", () => {
@@ -64,5 +66,36 @@ describe("environment configuration", () => {
     });
 
     expect(environment.SUPABASE_ADMIN_KEY).toBe("sb_secret_test-key");
+  });
+
+  it("requires complete S3 credentials when S3 is selected", () => {
+    expect(() =>
+      parseServerEnvironment({
+        ...validPublicEnvironment,
+        STORAGE_PROVIDER: "s3",
+        S3_ENDPOINT: "https://example.r2.cloudflarestorage.com",
+      }),
+    ).toThrow(
+      "Invalid environment configuration: S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY",
+    );
+  });
+
+  it("accepts an S3-compatible storage configuration", () => {
+    const environment = parseServerEnvironment({
+      ...validPublicEnvironment,
+      STORAGE_PROVIDER: "s3",
+      S3_ENDPOINT: "https://example.r2.cloudflarestorage.com",
+      S3_REGION: "auto",
+      S3_BUCKET: "event-photos",
+      S3_ACCESS_KEY_ID: "access-key",
+      S3_SECRET_ACCESS_KEY: "secret-key",
+      S3_FORCE_PATH_STYLE: "true",
+    });
+
+    expect(environment).toMatchObject({
+      STORAGE_PROVIDER: "s3",
+      S3_BUCKET: "event-photos",
+      S3_FORCE_PATH_STYLE: true,
+    });
   });
 });

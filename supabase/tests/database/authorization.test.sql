@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(17);
+select plan(19);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.events'::regclass),
@@ -63,6 +63,30 @@ select ok(
       and indexname = 'photos_event_id_guest_id_idx'
   ),
   'the composite guest foreign key has a covering index'
+);
+
+select ok(
+  exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'photos'
+      and column_name = 'storage_provider'
+      and is_nullable = 'NO'
+      and column_default = '''supabase''::text'
+  ),
+  'photos retain Supabase as the default storage provider'
+);
+
+select ok(
+  exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.photos'::regclass
+      and conname = 'photos_storage_provider_check'
+      and convalidated
+  ),
+  'photo storage providers are constrained and validated'
 );
 
 select ok(

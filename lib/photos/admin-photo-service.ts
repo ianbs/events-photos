@@ -5,8 +5,11 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/auth/admin-authorization";
 import { infrastructureError, notFoundError, validationError } from "@/lib/errors/application-error";
 import { eventDateSchema } from "@/lib/events/event-validation";
-import { PHOTO_BUCKET } from "@/lib/photos/upload-policy";
 import { createSignedPhotoUrls } from "@/lib/photos/signed-photo-urls";
+import {
+  getPhotoStorage,
+  parseStorageProvider,
+} from "@/lib/storage/photo-storage";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 const photoIdSchema = z.string().uuid();
@@ -37,6 +40,7 @@ type AdminStoredPhoto = {
   mime_type: string;
   original_filename: string;
   storage_path: string;
+  storage_provider: string;
 };
 
 export type AdminPhoto = {
@@ -112,7 +116,7 @@ export async function listAdminPhotos(
   let query = supabase
     .from("photos")
     .select(
-      "id,event_id,storage_path,original_filename,mime_type,file_size,created_at",
+      "id,event_id,storage_path,storage_provider,original_filename,mime_type,file_size,created_at",
     )
     .order("created_at", { ascending })
     .order("id", { ascending })
@@ -165,7 +169,10 @@ export async function listAdminPhotos(
   );
   const urlsByPath = photos.length
     ? await createSignedPhotoUrls(
-        photos.map((photo) => photo.storage_path),
+        photos.map((photo) => ({
+      storagePath: photo.storage_path,
+      storageProvider: parseStorageProvider(photo.storage_provider),
+    })),
         SIGNED_URL_TTL_SECONDS,
       )
     : new Map<string, string>();
@@ -217,7 +224,7 @@ export async function createAdminPhotoUrl(
   const supabase = createAdminSupabaseClient();
   const { data: photo, error: photoError } = await supabase
     .from("photos")
-    .select("storage_path,original_filename")
+    .select("storage_path,storage_provider,original_filename")
     .eq("id", photoId)
     .maybeSingle();
 
@@ -229,17 +236,11 @@ export async function createAdminPhotoUrl(
     throw notFoundError("Foto não encontrada.");
   }
 
-  const { data, error } = await supabase.storage
-    .from(PHOTO_BUCKET)
-    .createSignedUrl(photo.storage_path, 60, {
-      download: download ? photo.original_filename : false,
-    });
-
-  if (error || !data) {
-    throw infrastructureError();
-  }
-
-  return data.signedUrl;
+  return getPhotoStorage(parseStorageProvider(photo.storage_provider)).createReadUrl(
+    photo.storage_path,
+    60,
+    download ? photo.original_filename : undefined,
+  );
 }
 
 export async function deletePhotoAsAdmin(
@@ -250,7 +251,7 @@ export async function deletePhotoAsAdmin(
   const supabase = createAdminSupabaseClient();
   const { data: photo, error: photoError } = await supabase
     .from("photos")
-    .select("storage_path")
+    .select("storage_path,storage_provider")
     .eq("id", photoId)
     .maybeSingle();
 
@@ -262,13 +263,9 @@ export async function deletePhotoAsAdmin(
     throw notFoundError("Foto não encontrada.");
   }
 
-  const { error: storageError } = await supabase.storage
-    .from(PHOTO_BUCKET)
-    .remove([photo.storage_path]);
-
-  if (storageError) {
-    throw infrastructureError();
-  }
+  await getPhotoStorage(parseStorageProvider(photo.storage_provider)).remove(
+    photo.storage_path,
+  );
 
   const { error: databaseError } = await supabase
     .from("photos")

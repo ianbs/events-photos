@@ -5,6 +5,7 @@ import { authorizeGuest } from "@/lib/guests/guest-service";
 import type { PhotoGalleryItem } from "@/lib/photos/photo-gallery-contract";
 import { createSignedPhotoUrls } from "@/lib/photos/signed-photo-urls";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { parseStorageProvider } from "@/lib/storage/photo-storage";
 
 const SIGNED_URL_TTL_SECONDS = 5 * 60;
 const PHOTO_PAGE_SIZE = 500;
@@ -16,6 +17,7 @@ type StoredPhoto = {
   mime_type: string;
   original_filename: string;
   storage_path: string;
+  storage_provider: string;
 };
 
 async function signPhotos(photos: StoredPhoto[]): Promise<PhotoGalleryItem[]> {
@@ -24,7 +26,10 @@ async function signPhotos(photos: StoredPhoto[]): Promise<PhotoGalleryItem[]> {
   }
 
   const urlsByPath = await createSignedPhotoUrls(
-    photos.map((photo) => photo.storage_path),
+    photos.map((photo) => ({
+      storagePath: photo.storage_path,
+      storageProvider: parseStorageProvider(photo.storage_provider),
+    })),
     SIGNED_URL_TTL_SECONDS,
   );
 
@@ -59,7 +64,7 @@ export async function listGuestPhotos(
     let query = supabase
       .from("photos")
       .select(
-        "id,storage_path,original_filename,mime_type,file_size,created_at",
+        "id,storage_path,storage_provider,original_filename,mime_type,file_size,created_at",
       )
       .eq("event_id", guest.eventId)
       .eq("guest_id", guest.guestId)

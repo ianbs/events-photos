@@ -47,6 +47,7 @@ export async function DELETE(request: Request, context: RouteContext) {
       photoId,
       result.data.guestToken,
       result.data.mimeType,
+      result.data.storageProvider,
     );
 
     return new Response(null, { status: 204 });

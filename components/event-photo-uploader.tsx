@@ -161,12 +161,13 @@ export function EventPhotoUploader({
     photoId: string,
     token: string,
     mimeType: string,
+    storageProvider: "supabase" | "s3",
   ) {
     try {
       await fetch(`/api/events/${eventSlug}/uploads/${photoId}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ guestToken: token, mimeType }),
+        body: JSON.stringify({ guestToken: token, mimeType, storageProvider }),
       });
     } catch {
       // A server-side cleanup also runs for validation and persistence failures.
@@ -219,25 +220,38 @@ export function EventPhotoUploader({
       const initialization = uploadInitializationResponseSchema.parse(
         initializationBody,
       );
-      const supabase = createBrowserSupabaseClient();
-      const { error: uploadError } = await supabase.storage
-        .from("event-photos")
-        .uploadToSignedUrl(
-          initialization.path,
-          initialization.token,
-          selectedFile,
-          {
-            cacheControl: "3600",
-            contentType: validation.mimeType,
-            upsert: false,
-          },
-        );
+      let uploadFailed = false;
 
-      if (uploadError) {
+      if (initialization.provider === "supabase") {
+        const supabase = createBrowserSupabaseClient();
+        const { error } = await supabase.storage
+          .from("event-photos")
+          .uploadToSignedUrl(
+            initialization.path,
+            initialization.token,
+            selectedFile,
+            {
+              cacheControl: "3600",
+              contentType: validation.mimeType,
+              upsert: false,
+            },
+          );
+        uploadFailed = Boolean(error);
+      } else {
+        const response = await fetch(initialization.uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": validation.mimeType },
+          body: selectedFile,
+        });
+        uploadFailed = !response.ok;
+      }
+
+      if (uploadFailed) {
         await requestCleanup(
           initialization.photoId,
           guestToken,
           validation.mimeType,
+          initialization.provider,
         );
         throw new Error("Falha ao enviar a imagem. Tente novamente.");
       }
@@ -248,7 +262,10 @@ export function EventPhotoUploader({
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(uploadInput),
+          body: JSON.stringify({
+            ...uploadInput,
+            storageProvider: initialization.provider,
+          }),
         },
       );
       const completionBody = await readResponseBody(completionResponse);
