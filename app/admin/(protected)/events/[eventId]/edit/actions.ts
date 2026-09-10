@@ -17,9 +17,12 @@ export async function updateEventAction(
 ): Promise<EditEventFormState> {
   try {
     await updateAdminEvent(eventId, {
+      availabilityUntil: String(formData.get("availabilityUntil") ?? ""),
+      closingMessage: String(formData.get("closingMessage") ?? ""),
       eventDate: String(formData.get("eventDate") ?? ""),
       isActive: formData.get("isActive") === "on",
       name: String(formData.get("name") ?? ""),
+      organizerContact: String(formData.get("organizerContact") ?? ""),
       slug: String(formData.get("slug") ?? ""),
     });
   } catch (error) {
@@ -33,5 +36,5 @@ export async function updateEventAction(
 
   revalidatePath("/admin");
   revalidatePath(`/e/${String(formData.get("slug") ?? "")}`);
-  redirect("/admin?event=updated");
+  redirect("/admin?status=updated");
 }

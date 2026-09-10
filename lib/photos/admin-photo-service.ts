@@ -4,13 +4,30 @@ import { z } from "zod";
 
 import { requireAdmin } from "@/lib/auth/admin-authorization";
 import { infrastructureError, notFoundError, validationError } from "@/lib/errors/application-error";
+import { eventDateSchema } from "@/lib/events/event-validation";
 import { PHOTO_BUCKET } from "@/lib/photos/upload-policy";
 import { createSignedPhotoUrls } from "@/lib/photos/signed-photo-urls";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 const photoIdSchema = z.string().uuid();
 const SIGNED_URL_TTL_SECONDS = 5 * 60;
-const PHOTO_PAGE_SIZE = 500;
+export const ADMIN_PHOTO_PAGE_SIZE = 24;
+
+const adminPhotoSortSchema = z.enum(["newest", "oldest"]);
+const photoCursorSchema = z.object({
+  createdAt: z.string().datetime({ offset: true }),
+  id: z.string().uuid(),
+});
+
+export type AdminPhotoSort = z.infer<typeof adminPhotoSortSchema>;
+
+export type AdminPhotoFilters = {
+  cursor: string | null;
+  eventId: string | null;
+  fromDate: string | null;
+  sort: AdminPhotoSort;
+  toDate: string | null;
+};
 
 type AdminStoredPhoto = {
   created_at: string;
@@ -24,6 +41,7 @@ type AdminStoredPhoto = {
 
 export type AdminPhoto = {
   createdAt: string;
+  eventId: string;
   eventName: string;
   eventSlug: string;
   fileSize: number;
@@ -33,60 +51,126 @@ export type AdminPhoto = {
   signedUrl: string;
 };
 
-export async function listAdminPhotos(): Promise<AdminPhoto[]> {
+export type AdminPhotoPage = {
+  nextCursor: string | null;
+  photos: AdminPhoto[];
+  totalCount: number;
+};
+
+export function normalizeAdminPhotoFilters(input: {
+  cursor?: string;
+  event?: string;
+  from?: string;
+  sort?: string;
+  to?: string;
+}): AdminPhotoFilters {
+  return {
+    cursor: input.cursor?.trim() || null,
+    eventId: photoIdSchema.safeParse(input.event).success ? input.event! : null,
+    fromDate: eventDateSchema.safeParse(input.from).success ? input.from! : null,
+    sort: adminPhotoSortSchema.catch("newest").parse(input.sort),
+    toDate: eventDateSchema.safeParse(input.to).success ? input.to! : null,
+  };
+}
+
+function decodePhotoCursor(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return photoCursorSchema.parse(
+      JSON.parse(Buffer.from(value, "base64url").toString("utf8")),
+    );
+  } catch {
+    return null;
+  }
+}
+
+function encodePhotoCursor(photo: AdminStoredPhoto): string {
+  return Buffer.from(
+    JSON.stringify({ createdAt: photo.created_at, id: photo.id }),
+  ).toString("base64url");
+}
+
+function getExclusiveEndDate(value: string): string {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString();
+}
+
+export async function listAdminPhotos(
+  filters: AdminPhotoFilters = normalizeAdminPhotoFilters({}),
+): Promise<AdminPhotoPage> {
   await requireAdmin();
   const supabase = createAdminSupabaseClient();
   const { data: events, error: eventsError } = await supabase
     .from("events")
     .select("id,name,slug");
-  const photos: AdminStoredPhoto[] = [];
-  let cursor: string | null = null;
+  const ascending = filters.sort === "oldest";
+  const cursor = decodePhotoCursor(filters.cursor);
+  let query = supabase
+    .from("photos")
+    .select(
+      "id,event_id,storage_path,original_filename,mime_type,file_size,created_at",
+    )
+    .order("created_at", { ascending })
+    .order("id", { ascending })
+    .limit(ADMIN_PHOTO_PAGE_SIZE + 1);
+  let countQuery = supabase
+    .from("photos")
+    .select("id", { count: "exact", head: true });
 
-  do {
-    let query = supabase
-      .from("photos")
-      .select(
-        "id,event_id,storage_path,original_filename,mime_type,file_size,created_at",
-      )
-      .order("id", { ascending: false })
-      .limit(PHOTO_PAGE_SIZE);
+  if (filters.eventId) {
+    query = query.eq("event_id", filters.eventId);
+    countQuery = countQuery.eq("event_id", filters.eventId);
+  }
 
-    if (cursor) {
-      query = query.lt("id", cursor);
-    }
+  if (filters.fromDate) {
+    query = query.gte("created_at", `${filters.fromDate}T00:00:00.000Z`);
+    countQuery = countQuery.gte(
+      "created_at",
+      `${filters.fromDate}T00:00:00.000Z`,
+    );
+  }
 
-    const { data, error } = await query;
+  if (filters.toDate) {
+    const exclusiveEndDate = getExclusiveEndDate(filters.toDate);
+    query = query.lt("created_at", exclusiveEndDate);
+    countQuery = countQuery.lt("created_at", exclusiveEndDate);
+  }
 
-    if (error) {
-      throw infrastructureError();
-    }
+  if (cursor) {
+    const direction = ascending ? "gt" : "lt";
+    query = query.or(
+      `created_at.${direction}.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.${direction}.${cursor.id})`,
+    );
+  }
 
-    const page = data ?? [];
-    photos.push(...page);
-    cursor = page.length === PHOTO_PAGE_SIZE ? page.at(-1)?.id ?? null : null;
-  } while (cursor);
+  const [
+    { data, error },
+    { count, error: countError },
+  ] = await Promise.all([query, countQuery]);
 
-  if (eventsError) {
+  if (eventsError || error || countError) {
     throw infrastructureError();
   }
 
-  if (photos.length === 0) {
-    return [];
-  }
-
-  photos.sort((left, right) =>
-    right.created_at.localeCompare(left.created_at),
-  );
+  const result = (data ?? []) as AdminStoredPhoto[];
+  const hasNextPage = result.length > ADMIN_PHOTO_PAGE_SIZE;
+  const photos = result.slice(0, ADMIN_PHOTO_PAGE_SIZE);
 
   const eventsById = new Map(
     (events ?? []).map((event) => [event.id, { name: event.name, slug: event.slug }]),
   );
-  const urlsByPath = await createSignedPhotoUrls(
-    photos.map((photo) => photo.storage_path),
-    SIGNED_URL_TTL_SECONDS,
-  );
+  const urlsByPath = photos.length
+    ? await createSignedPhotoUrls(
+        photos.map((photo) => photo.storage_path),
+        SIGNED_URL_TTL_SECONDS,
+      )
+    : new Map<string, string>();
 
-  return photos.map((photo) => {
+  const mappedPhotos = photos.map((photo) => {
     const event = eventsById.get(photo.event_id);
     const signedUrl = urlsByPath.get(photo.storage_path);
 
@@ -96,6 +180,7 @@ export async function listAdminPhotos(): Promise<AdminPhoto[]> {
 
     return {
       createdAt: photo.created_at,
+      eventId: photo.event_id,
       eventName: event.name,
       eventSlug: event.slug,
       fileSize: photo.file_size,
@@ -105,6 +190,12 @@ export async function listAdminPhotos(): Promise<AdminPhoto[]> {
       signedUrl,
     };
   });
+
+  return {
+    nextCursor: hasNextPage ? encodePhotoCursor(photos.at(-1)!) : null,
+    photos: mappedPhotos,
+    totalCount: count ?? 0,
+  };
 }
 
 function validatePhotoId(untrustedPhotoId: string): string {

@@ -32,6 +32,7 @@ export type Database = {
       events: {
         Row: {
           accent_color: string
+          closing_message: string
           cover_storage_path: string | null
           created_at: string
           event_date: string
@@ -39,11 +40,14 @@ export type Database = {
           is_active: boolean
           logo_storage_path: string | null
           name: string
+          organizer_contact: string | null
+          photos_available_until: string | null
           primary_color: string
           slug: string
         }
         Insert: {
           accent_color?: string
+          closing_message?: string
           cover_storage_path?: string | null
           created_at?: string
           event_date: string
@@ -51,11 +55,14 @@ export type Database = {
           is_active?: boolean
           logo_storage_path?: string | null
           name: string
+          organizer_contact?: string | null
+          photos_available_until?: string | null
           primary_color?: string
           slug: string
         }
         Update: {
           accent_color?: string
+          closing_message?: string
           cover_storage_path?: string | null
           created_at?: string
           event_date?: string
@@ -63,6 +70,8 @@ export type Database = {
           is_active?: boolean
           logo_storage_path?: string | null
           name?: string
+          organizer_contact?: string | null
+          photos_available_until?: string | null
           primary_color?: string
           slug?: string
         }
@@ -147,7 +156,24 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      event_admin_summaries: {
+        Row: {
+          event_id: string | null
+          guest_count: number | null
+          last_photo_at: string | null
+          photo_count: number | null
+          storage_bytes: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_pkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       [_ in never]: never

@@ -108,6 +108,10 @@ O Supabase Auth mantém a sessão em cookies SSR atualizados pelo `proxy.ts`. La
 
 Administradores podem criar eventos em `/admin/events/new` e editá-los em `/admin/events/[eventId]/edit`. Nome, slug, data e status são validados novamente no servidor antes da escrita privilegiada; um slug duplicado é tratado como conflito. Alterar o slug invalida links e QR Codes anteriores, por isso a interface exibe um alerta. A galeria administrativa separa as fotos por evento.
 
+Ao encerrar um evento, a mesma URL pública passa a exibir a mensagem de agradecimento, o prazo opcional de disponibilidade das fotos e o contato opcional do organizador. Eventos encerrados continuam ocultos pela política pública do banco; a página resolve um slug validado exclusivamente no servidor e não expõe uma listagem de eventos inativos pela Data API.
+
+O painel resume fotos, dispositivos, armazenamento e último envio por evento. O acervo usa filtros por evento e período, ordenação e paginação por cursor, assinando URLs apenas para a página visível. É possível baixar uma seleção ou todo o evento como ZIP transmitido a partir do bucket privado, sem tornar os objetos públicos.
+
 Na edição também é possível configurar capa, logotipo, cor principal e cor de destaque. Os uploads usam URLs assinadas, são confirmados no servidor por tamanho, MIME e assinatura binária, e os arquivos substituídos são removidos depois da atualização do banco. A página pública usa URLs temporárias para ler o bucket privado e mantém o tema padrão quando não há personalização.
 
 As grades usam o otimizador de imagens do Next.js sobre as URLs temporárias do bucket privado. Assim, o navegador recebe thumbnails redimensionadas em vez dos arquivos originais. A abertura e o download continuam usando o objeto original. Em produção, acompanhe também a cota de Image Optimization da Vercel.

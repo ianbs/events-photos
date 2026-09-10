@@ -16,13 +16,17 @@ import { createEventBrandingUrls } from "@/lib/events/event-branding-storage";
 import { eventBrandingColorsSchema } from "@/lib/events/event-branding-policy";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
-const eventColumns = "id,name,slug,event_date,is_active" as const;
+const eventColumns =
+  "id,name,slug,event_date,is_active,closing_message,photos_available_until,organizer_contact" as const;
 
 export type AdminEvent = {
+  availabilityUntil: string | null;
+  closingMessage: string;
   eventDate: string;
   id: string;
   isActive: boolean;
   name: string;
+  organizerContact: string | null;
   slug: string;
 };
 
@@ -33,20 +37,33 @@ export type EditableAdminEvent = AdminEvent & {
   primaryColor: string;
 };
 
+export type AdminEventSummary = AdminEvent & {
+  guestCount: number;
+  lastPhotoAt: string | null;
+  photoCount: number;
+  storageBytes: number;
+};
+
 type StoredAdminEvent = {
+  closing_message: string;
   event_date: string;
   id: string;
   is_active: boolean;
   name: string;
+  organizer_contact: string | null;
+  photos_available_until: string | null;
   slug: string;
 };
 
 function mapAdminEvent(event: StoredAdminEvent): AdminEvent {
   return {
+    availabilityUntil: event.photos_available_until,
+    closingMessage: event.closing_message,
     eventDate: event.event_date,
     id: event.id,
     isActive: event.is_active,
     name: event.name,
+    organizerContact: event.organizer_contact,
     slug: event.slug,
   };
 }
@@ -73,9 +90,12 @@ function validateEventInput(untrustedInput: unknown): EventInput {
 
 function toStoredEventInput(input: EventInput) {
   return {
+    closing_message: input.closingMessage,
     event_date: input.eventDate,
     is_active: input.isActive,
     name: input.name,
+    organizer_contact: input.organizerContact,
+    photos_available_until: input.availabilityUntil,
     slug: input.slug,
   };
 }
@@ -192,4 +212,42 @@ export async function listAdminEvents(): Promise<AdminEvent[]> {
   }
 
   return (data ?? []).map(mapAdminEvent);
+}
+
+export async function listAdminEventSummaries(): Promise<AdminEventSummary[]> {
+  await requireAdmin();
+  const supabase = createAdminSupabaseClient();
+  const [{ data: events, error: eventsError }, { data: summaries, error: summariesError }] =
+    await Promise.all([
+      supabase
+        .from("events")
+        .select(eventColumns)
+        .order("event_date", { ascending: false }),
+      supabase.from("event_admin_summaries").select(
+        "event_id,photo_count,guest_count,storage_bytes,last_photo_at",
+      ),
+    ]);
+
+  if (eventsError || summariesError) {
+    throw infrastructureError();
+  }
+
+  const summariesByEventId = new Map(
+    (summaries ?? []).flatMap((summary) =>
+      summary.event_id ? [[summary.event_id, summary] as const] : [],
+    ),
+  );
+
+  return (events ?? []).map((storedEvent) => {
+    const event = mapAdminEvent(storedEvent);
+    const summary = summariesByEventId.get(event.id);
+
+    return {
+      ...event,
+      guestCount: summary?.guest_count ?? 0,
+      lastPhotoAt: summary?.last_photo_at ?? null,
+      photoCount: summary?.photo_count ?? 0,
+      storageBytes: summary?.storage_bytes ?? 0,
+    };
+  });
 }

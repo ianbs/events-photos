@@ -80,9 +80,12 @@ describe("admin event creation", () => {
       slug: "evento-de-teste",
     });
     expect(insert).toHaveBeenCalledWith({
+      closing_message: "Obrigado por compartilhar este momento conosco!",
       event_date: "2026-08-16",
       is_active: true,
       name: "Evento de teste",
+      organizer_contact: null,
+      photos_available_until: null,
       slug: "evento-de-teste",
     });
   });
@@ -135,9 +138,12 @@ describe("admin event update", () => {
       "11111111-1111-4111-8111-111111111111",
     );
     expect(update).toHaveBeenCalledWith({
+      closing_message: "Obrigado por compartilhar este momento conosco!",
       event_date: "2026-08-16",
       is_active: false,
       name: "Evento atualizado",
+      organizer_contact: null,
+      photos_available_until: null,
       slug: "evento-atualizado",
     });
   });

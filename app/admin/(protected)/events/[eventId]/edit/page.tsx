@@ -43,9 +43,12 @@ export default async function EditAdminEventPage({
         <EditEventForm
           eventId={event.id}
           initialValues={{
+            availabilityUntil: event.availabilityUntil,
+            closingMessage: event.closingMessage,
             eventDate: event.eventDate,
             isActive: event.isActive,
             name: event.name,
+            organizerContact: event.organizerContact,
             slug: event.slug,
           }}
         />

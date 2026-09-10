@@ -9,7 +9,7 @@ export const eventSlugSchema = z
   .max(100)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 
-const eventDateSchema = z
+export const eventDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
   .refine((value) => {
@@ -23,10 +23,38 @@ const eventDateSchema = z
     );
   });
 
+export const DEFAULT_EVENT_CLOSING_MESSAGE =
+  "Obrigado por compartilhar este momento conosco!";
+
+const optionalEventDateSchema = z.preprocess(
+  (value) => (value === "" || value === undefined ? null : value),
+  eventDateSchema.nullable(),
+);
+
+const optionalOrganizerContactSchema = z.preprocess(
+  (value) => {
+    if (typeof value !== "string") {
+      return value ?? null;
+    }
+
+    const trimmedValue = value.trim();
+    return trimmedValue.length > 0 ? trimmedValue : null;
+  },
+  z.string().max(300).nullable(),
+);
+
 export const createEventSchema = z.object({
+  availabilityUntil: optionalEventDateSchema.default(null),
+  closingMessage: z
+    .string()
+    .trim()
+    .min(1)
+    .max(1000)
+    .default(DEFAULT_EVENT_CLOSING_MESSAGE),
   eventDate: eventDateSchema,
   isActive: z.boolean(),
   name: z.string().trim().min(1).max(200),
+  organizerContact: optionalOrganizerContactSchema.default(null),
   slug: eventSlugSchema,
 });
 
