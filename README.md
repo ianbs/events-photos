@@ -2,6 +2,32 @@
 
 Aplicação web mobile-first para convidados fotografarem um evento e visualizarem somente as fotos enviadas pelo próprio navegador. Administradores autorizados podem visualizar, abrir, baixar e excluir todo o acervo.
 
+## Save the date e confirmação de presença
+
+Cada evento ativo possui uma página em `/e/[slug]/save-the-date`, com a mesma capa,
+logotipo, cores, nome e data da galeria. Compartilhe esse endereço com os convidados;
+o painel administrativo oferece os links "Abrir save the date" e "Confirmações de presença".
+
+O convidado informa o nome completo, se comparecerá e de 0 a 10 acompanhantes
+(sem contar a si próprio). Pode atualizar a resposta no mesmo navegador. O token
+já usado pela galeria identifica a resposta por evento, e reenvios substituem a
+resposta anterior. Outro navegador ou limpeza do armazenamento gera uma nova
+identidade; o nome não é usado como prova de identidade nem para deduplicação.
+Esta página usa inscrição aberta pelo link, sem lista de convites individuais.
+
+As respostas são consultadas apenas pelo administrador em
+`/admin/events/[eventId]/rsvps`, com paginação. A tabela `event_rsvps` tem RLS
+ativado e forçado, sem acesso direto de `anon` ou `authenticated`. A API valida
+o evento ativo e o token antes de ler ou gravar, e nunca expõe tokens na listagem.
+Antes de usar em um ambiente existente, aplique a migration `add_event_rsvps`
+pelo fluxo de migrations abaixo; o código sozinho não cria a tabela remota.
+
+Para verificar o acesso às tabelas usadas pela RSVP, execute
+`pnpm supabase:rsvp:check`. O diagnóstico usa a chave privada somente no servidor
+e informa status HTTP e código do erro sem imprimir dados de convidados ou chaves.
+Se `event_rsvps` retornar `404 / PGRST205`, confira o histórico e aplique a migration
+pendente no mesmo projeto Supabase configurado pela aplicação.
+
 ## Stack e requisitos
 
 - Next.js 16, React 19, App Router, TypeScript estrito e Tailwind CSS 4

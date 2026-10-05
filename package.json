@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start",
     "supabase:check": "node --env-file=.env.local scripts/check-supabase.mjs",
+    "supabase:rsvp:check": "node --env-file=.env.local scripts/check-rsvp.mjs",
     "supabase:types": "node scripts/generate-database-types.mjs",
     "supabase:test:db": "supabase test db",
     "lint": "eslint .",

@@ -88,6 +88,12 @@ export default async function AdminDashboardPage({
                 <Link href={`/admin/events/${event.id}/edit`} className="mt-2 block text-sm text-emerald-700 underline">
                   Editar evento
                 </Link>
+                <Link href={`/e/${event.slug}/save-the-date`} target="_blank" rel="noreferrer" className="mt-2 block text-sm text-emerald-700 underline">
+                  Abrir save the date
+                </Link>
+                <Link href={`/admin/events/${event.id}/rsvps`} className="mt-2 block text-sm text-emerald-700 underline">
+                  Confirmações de presença
+                </Link>
                 <a href={event.qrCodeDataUrl} download={`qr-${event.slug}.png`} className="mt-2 block text-sm text-slate-700 underline">
                   Baixar QR Code
                 </a>

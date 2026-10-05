@@ -68,6 +68,41 @@ export type Database = {
         }
         Relationships: []
       }
+      event_rsvps: {
+        Row: {
+          event_id: string
+          guest_id: string
+          name: string
+          attending: boolean
+          companions: number
+          updated_at: string
+        }
+        Insert: {
+          event_id: string
+          guest_id: string
+          name: string
+          attending: boolean
+          companions?: number
+          updated_at?: string
+        }
+        Update: {
+          event_id?: string
+          guest_id?: string
+          name?: string
+          attending?: boolean
+          companions?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_rsvps_event_guest_fkey"
+            columns: ["event_id", "guest_id"]
+            isOneToOne: true
+            referencedRelation: "guests"
+            referencedColumns: ["event_id", "id"]
+          },
+        ]
+      }
       guests: {
         Row: {
           created_at: string
