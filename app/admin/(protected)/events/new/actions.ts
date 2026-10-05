@@ -16,9 +16,12 @@ export async function createEventAction(
 ): Promise<CreateEventFormState> {
   try {
     await createAdminEvent({
+      availabilityUntil: String(formData.get("availabilityUntil") ?? ""),
+      closingMessage: String(formData.get("closingMessage") ?? ""),
       eventDate: String(formData.get("eventDate") ?? ""),
       isActive: formData.get("isActive") === "on",
       name: String(formData.get("name") ?? ""),
+      organizerContact: String(formData.get("organizerContact") ?? ""),
       slug: String(formData.get("slug") ?? ""),
     });
   } catch (error) {
@@ -31,5 +34,5 @@ export async function createEventAction(
   }
 
   revalidatePath("/admin");
-  redirect("/admin?event=created");
+  redirect("/admin?status=created");
 }

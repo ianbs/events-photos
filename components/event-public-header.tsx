@@ -5,7 +5,7 @@ import type { EventSummary } from "@/lib/events/event";
 export function EventPublicHeader({ event, label, description }: {
   event: EventSummary;
   label: string;
-  description: string;
+  description?: string;
 }) {
   const formattedDate = new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "long", timeZone: "UTC",
@@ -29,6 +29,6 @@ export function EventPublicHeader({ event, label, description }: {
     <h1 className="mt-2 text-center text-3xl font-semibold tracking-tight sm:text-4xl">{event.name}</h1>
     <div aria-hidden="true" className="mt-3 h-1 w-14 rounded-full bg-[var(--event-accent)]" />
     <p className="mt-3 text-slate-600"><time dateTime={event.eventDate}>{formattedDate}</time></p>
-    <p className="mt-5 max-w-lg text-center text-slate-600">{description}</p>
+    {description ? <p className="mt-5 max-w-lg text-center text-slate-600">{description}</p> : null}
   </>;
 }

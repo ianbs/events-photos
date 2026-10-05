@@ -22,3 +22,23 @@ describe("admin photo authorization", () => {
     expect(createAdminSupabaseClient).not.toHaveBeenCalled();
   });
 });
+
+describe("admin photo filters", () => {
+  it("ignores invalid URL filters and keeps valid calendar dates", async () => {
+    const { normalizeAdminPhotoFilters } = await import("./admin-photo-service");
+
+    expect(
+      normalizeAdminPhotoFilters({
+        event: "not-a-uuid",
+        from: "2026-02-31",
+        sort: "sideways",
+        to: "2026-09-05",
+      }),
+    ).toMatchObject({
+      eventId: null,
+      fromDate: null,
+      sort: "newest",
+      toDate: "2026-09-05",
+    });
+  });
+});

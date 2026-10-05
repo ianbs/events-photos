@@ -2,12 +2,18 @@
 
 import { useState } from "react";
 
-import { suggestEventSlug } from "@/lib/events/event-validation";
+import {
+  DEFAULT_EVENT_CLOSING_MESSAGE,
+  suggestEventSlug,
+} from "@/lib/events/event-validation";
 
 export type EventFormValues = {
+  availabilityUntil: string | null;
+  closingMessage: string;
   eventDate: string;
   isActive: boolean;
   name: string;
+  organizerContact: string | null;
   slug: string;
 };
 
@@ -112,11 +118,68 @@ export function EventFormFields({
             Evento ativo
           </span>
           <span className="mt-1 block text-xs text-slate-500">
-            Convidados poderão abrir a página e enviar fotos enquanto estiver
-            ativo.
+            Enquanto estiver ativo, convidados poderão abrir a página e enviar
+            fotos. Ao desativar, verão a página de encerramento abaixo.
           </span>
         </span>
       </label>
+
+      <fieldset className="space-y-5 rounded-2xl border border-slate-200 p-4 sm:p-5">
+        <legend className="px-2 text-sm font-semibold text-slate-800">
+          Página de encerramento
+        </legend>
+
+        <label className="block">
+          <span className="text-sm font-medium text-slate-700">
+            Mensagem de agradecimento
+          </span>
+          <textarea
+            name="closingMessage"
+            required
+            maxLength={1000}
+            rows={4}
+            defaultValue={
+              defaultValues?.closingMessage ?? DEFAULT_EVENT_CLOSING_MESSAGE
+            }
+            className="mt-2 w-full resize-y rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-medium text-slate-700">
+            Fotos disponíveis até
+          </span>
+          <input
+            name="availabilityUntil"
+            type="date"
+            defaultValue={defaultValues?.availabilityUntil ?? ""}
+            className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+          />
+          <span className="mt-2 block text-xs text-slate-500">
+            Opcional. A data será exibida aos convidados; ela não exclui os
+            arquivos automaticamente.
+          </span>
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-medium text-slate-700">
+            Contato do organizador
+          </span>
+          <input
+            name="organizerContact"
+            type="text"
+            maxLength={300}
+            autoComplete="off"
+            defaultValue={defaultValues?.organizerContact ?? ""}
+            placeholder="Ex.: fotos@exemplo.com ou (11) 99999-9999"
+            className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+          />
+          <span className="mt-2 block text-xs text-amber-700">
+            Opcional. Este texto ficará visível publicamente quando o evento
+            estiver encerrado.
+          </span>
+        </label>
+      </fieldset>
 
       <button
         type="submit"
