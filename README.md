@@ -171,6 +171,22 @@ O navegador mantém um UUID criptograficamente seguro no `localStorage`, isolado
 
 ### Administração
 
+### Convidados e confirmação de presença
+
+O save the date usa apenas o convite individual por link ou código. Abrir o link já recupera a confirmação, sem pedir e-mail. O mesmo convite funciona em diferentes dispositivos, e novas respostas atualizam o registro existente. O token local continua restrito ao fluxo de fotos.
+
+Na página administrativa de confirmações, cadastre nome, WhatsApp com código do país e e-mail opcional de contato. O e-mail não autentica convidados. A tabela reúne contatos, status da confirmação e ações para editar o cadastro, recuperar o mesmo link/código, substituir o código ou revogar o convite. Consultar um convite não invalida o link anterior. Substituir o código mantém a resposta existente e invalida o código anterior.
+
+O banco guarda o código recuperável em uma coluna restrita à administração e um hash SHA-256 para a autorização pública. RLS, grants e validação de administrador impedem acesso direto dos clientes. Links levam o segredo no fragmento `#convite=`, removido pela interface; APIs recebem credenciais no corpo e respostas administrativas usam `no-store`. Convites legados armazenados apenas como hash precisam ter o código substituído uma vez; os links antigos não são revogados automaticamente pela migração.
+
+Para WhatsApp, recupere o convite e use **Abrir mensagem no WhatsApp** ou selecione convidados com telefone e convite ativo e exporte o CSV com telefone, link e mensagem personalizada. A exportação prepara a distribuição; não envia mensagens. Disparo automático em massa requer uma integração com a API oficial do WhatsApp Business, templates e fila de envios, com acompanhamento de entrega e falhas.
+
+O evento configura o **máximo de acompanhantes por convidado**, sem contar o próprio convidado. Com 0, a confirmação é individual; com 1, permite até um acompanhante. Sem valor configurado, o padrão é 10. Formulário, servidor e banco aplicam o mesmo limite. Respostas anteriores são preservadas; ao atualizá-las, a quantidade é ajustada ao limite atual.
+
+Aplique migrations antes de publicar e regenere os tipos com `pnpm supabase:types`. Verifique cadastro, recuperação do mesmo link após recarregar, edição de contatos, confirmação em dois dispositivos, revogação e exportação sem convidados de outros eventos.
+
+### Acesso administrativo
+
 O Supabase Auth mantém a sessão em cookies SSR atualizados pelo `proxy.ts`. Layouts e APIs verificam a sessão e a allowlist. Abrir e baixar redirecionam para URLs assinadas de 60 segundos. A exclusão remove o objeto do Storage antes do registro; se o banco falhar, repetir a operação é seguro e conclui a limpeza.
 
 Administradores podem criar eventos em `/admin/events/new` e editá-los em `/admin/events/[eventId]/edit`. Nome, slug, data e status são validados novamente no servidor antes da escrita privilegiada; um slug duplicado é tratado como conflito. Alterar o slug invalida links e QR Codes anteriores, por isso a interface exibe um alerta. A galeria administrativa separa as fotos por evento.

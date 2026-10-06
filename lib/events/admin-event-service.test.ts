@@ -85,9 +85,26 @@ describe("admin event creation", () => {
       is_active: true,
       name: "Evento de teste",
       organizer_contact: null,
+      location: null,
+      maps_url: null,
+      max_companions: null,
       photos_available_until: null,
       slug: "evento-de-teste",
     });
+  });
+
+  it("persists and returns the location, map link and capacity", async () => {
+    const details = { location: "Salão Central", mapsUrl: "https://maps.apple.com/?q=Salao", maxCompanions: 150 };
+    const stored = { location: details.location, maps_url: details.mapsUrl, max_companions: details.maxCompanions };
+    const { client, insert } = createInsertClient({
+      data: { ...stored, id: "11111111-1111-4111-8111-111111111111", name: validInput.name,
+        slug: validInput.slug, event_date: validInput.eventDate, is_active: true },
+      error: null,
+    });
+    createAdminSupabaseClient.mockReturnValue(client);
+    const { createAdminEvent } = await import("./admin-event-service");
+    await expect(createAdminEvent({ ...validInput, ...details })).resolves.toMatchObject(details);
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining(stored));
   });
 });
 
@@ -95,6 +112,23 @@ describe("admin event update", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     requireAdmin.mockResolvedValue({ userId: "admin-id" });
+  });
+
+  it("saves zero capacity from the edit form without converting it to null", async () => {
+    const { client, update } = createUpdateClient({
+      data: {
+        id: "11111111-1111-4111-8111-111111111111",
+        name: validInput.name, slug: validInput.slug, event_date: validInput.eventDate,
+        is_active: true, max_companions: 0,
+      },
+      error: null,
+    });
+    createAdminSupabaseClient.mockReturnValue(client);
+    const { updateAdminEvent } = await import("./admin-event-service");
+    await expect(updateAdminEvent("11111111-1111-4111-8111-111111111111", {
+      ...validInput, maxCompanions: "0",
+    })).resolves.toMatchObject({ maxCompanions: 0 });
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ max_companions: 0 }));
   });
 
   it("does not touch the database when authorization fails", async () => {
@@ -143,6 +177,9 @@ describe("admin event update", () => {
       is_active: false,
       name: "Evento atualizado",
       organizer_contact: null,
+      location: null,
+      maps_url: null,
+      max_companions: null,
       photos_available_until: null,
       slug: "evento-atualizado",
     });

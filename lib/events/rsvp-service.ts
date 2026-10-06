@@ -6,11 +6,12 @@ import { requireAdmin } from "@/lib/auth/admin-authorization";
 import { infrastructureError, validationError } from "@/lib/errors/application-error";
 import { rsvpInputSchema } from "@/lib/events/rsvp-contract";
 import { eventIdSchema } from "@/lib/events/event-validation";
-import { authorizeGuest, createOrRecoverGuest } from "@/lib/guests/guest-service";
+import { resolveRsvpIdentity } from "@/lib/events/rsvp-identity-service";
+import { getRsvpCompanionLimit } from "@/lib/events/rsvp-companions";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
-export async function readGuestRsvp(slug: string, guestToken: string) {
-  const guest = await createOrRecoverGuest(slug, guestToken);
+export async function readGuestRsvp(slug: string, credentials: unknown) {
+  const guest = await resolveRsvpIdentity(slug, credentials);
   const { data, error } = await createAdminSupabaseClient()
     .from("event_rsvps")
     .select("name,attending,companions")
@@ -25,8 +26,17 @@ export async function saveGuestRsvp(slug: string, untrustedInput: unknown) {
   const result = rsvpInputSchema.safeParse(untrustedInput);
   if (!result.success) throw validationError("Revise seu nome, presença e acompanhantes.");
   const input = result.data;
-  const guest = await authorizeGuest(slug, input.guestToken);
-  const { data, error } = await createAdminSupabaseClient()
+  const guest = await resolveRsvpIdentity(slug, input.credentials);
+  const supabase = createAdminSupabaseClient();
+  const { data: event, error: eventError } = await supabase.from("events")
+    .select("max_companions").eq("id", guest.eventId).maybeSingle();
+  if (eventError || !event) throw infrastructureError();
+  const companionLimit = getRsvpCompanionLimit(event.max_companions);
+  if (input.companions > companionLimit) {
+    throw validationError(companionLimit === 0 ? "Este evento não permite acompanhantes."
+      : `Este evento permite no máximo ${companionLimit} acompanhante(s) por convidado.`);
+  }
+  const { data, error } = await supabase
     .from("event_rsvps")
     .upsert({
       event_id: guest.eventId,
@@ -38,6 +48,7 @@ export async function saveGuestRsvp(slug: string, untrustedInput: unknown) {
     }, { onConflict: "event_id,guest_id" })
     .select("name,attending,companions")
     .single();
+  if (error?.code === "23514") throw validationError("Revise a quantidade de acompanhantes permitida para este evento.");
   if (error || !data) throw infrastructureError();
   return data;
 }

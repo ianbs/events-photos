@@ -6,6 +6,27 @@ import {
 } from "./event-validation";
 
 describe("event input validation", () => {
+  const validEvent = { eventDate: "2026-08-16", isActive: true, name: "Evento", slug: "evento" };
+
+  it("normalizes location and optional capacity", () => {
+    expect(createEventSchema.parse({ ...validEvent, location: "  Salão  ", mapsUrl: " ", maxCompanions: "150" }))
+      .toMatchObject({ location: "Salão", mapsUrl: null, maxCompanions: 150 });
+    expect(createEventSchema.parse({ ...validEvent, location: " ", maxCompanions: "" }))
+      .toMatchObject({ location: null, mapsUrl: null, maxCompanions: null });
+  });
+
+  it.each([0, "0"])("accepts zero capacity %s", (maxCompanions) => {
+    expect(createEventSchema.parse({ ...validEvent, maxCompanions }).maxCompanions).toBe(0);
+  });
+
+  it.each(["-1", "1.5", "abc", "2147483648", true])("rejects invalid capacity %s", (maxCompanions) => {
+    expect(createEventSchema.safeParse({ ...validEvent, maxCompanions }).success).toBe(false);
+  });
+
+  it.each(["not a link", "https://", "javascript:alert(1)", "data:text/html,test", "ftp://example.com", "https://user:password@example.com"])("rejects unsafe maps link %s", (mapsUrl) => {
+    expect(createEventSchema.safeParse({ ...validEvent, mapsUrl }).success).toBe(false);
+  });
+
   it("normalizes a suggested slug without accents", () => {
     expect(suggestEventSlug("Casamento Ana & João!")).toBe(
       "casamento-ana-joao",

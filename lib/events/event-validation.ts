@@ -43,7 +43,31 @@ const optionalOrganizerContactSchema = z.preprocess(
   z.string().max(300).nullable(),
 );
 
+const optionalText = (max: number) => z.preprocess(
+  (value) => typeof value === "string" ? value.trim() || null : value ?? null,
+  z.string().max(max).nullable(),
+);
+
+export const eventMapsUrlSchema = z.preprocess(
+  (value) => typeof value === "string" ? value.trim() || null : value ?? null,
+  z.url().max(2000).refine((value) => {
+    try {
+      const url = new URL(value);
+      return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password;
+    } catch {
+      return false;
+    }
+  }, "Informe um link de mapa válido, começando com https:// ou http://.").nullable(),
+);
+
 export const createEventSchema = z.object({
+  location: optionalText(500).default(null),
+  mapsUrl: eventMapsUrlSchema.default(null),
+  maxCompanions: z.preprocess(
+    (value) => value === null || value === undefined || (typeof value === "string" && !value.trim())
+      ? null : typeof value === "string" ? Number(value) : value,
+    z.number().int().min(0).max(2147483647).nullable(),
+  ).default(null),
   availabilityUntil: optionalEventDateSchema.default(null),
   closingMessage: z
     .string()

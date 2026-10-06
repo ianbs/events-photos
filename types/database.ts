@@ -38,6 +38,9 @@ export type Database = {
           event_date: string
           id: string
           is_active: boolean
+          location: string | null
+          maps_url: string | null
+          max_companions: number | null
           logo_storage_path: string | null
           name: string
           organizer_contact: string | null
@@ -53,6 +56,9 @@ export type Database = {
           event_date: string
           id?: string
           is_active?: boolean
+          location?: string | null
+          maps_url?: string | null
+          max_companions?: number | null
           logo_storage_path?: string | null
           name: string
           organizer_contact?: string | null
@@ -68,12 +74,51 @@ export type Database = {
           event_date?: string
           id?: string
           is_active?: boolean
+          location?: string | null
+          maps_url?: string | null
+          max_companions?: number | null
           logo_storage_path?: string | null
           name?: string
           organizer_contact?: string | null
           photos_available_until?: string | null
           primary_color?: string
           slug?: string
+        }
+        Relationships: []
+      }
+      event_rsvp_identities: {
+        Row: {
+          phone: string | null
+          invitation_code: string | null
+          event_id: string
+          guest_id: string
+          name: string
+          email: string | null
+          invitation_hash: string | null
+          invitation_revoked_at: string | null
+          created_at: string
+        }
+        Insert: {
+          phone?: string | null
+          invitation_code?: string | null
+          event_id: string
+          guest_id: string
+          name?: string
+          email?: string | null
+          invitation_hash?: string | null
+          invitation_revoked_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          phone?: string | null
+          invitation_code?: string | null
+          event_id?: string
+          guest_id?: string
+          name?: string
+          email?: string | null
+          invitation_hash?: string | null
+          invitation_revoked_at?: string | null
+          created_at?: string
         }
         Relationships: []
       }
@@ -214,7 +259,14 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      create_rsvp_guest: {
+        Args: { p_event_id: string; p_name: string; p_code: string; p_email?: string; p_phone?: string }
+        Returns: string
+      }
+      ensure_rsvp_identity: {
+        Args: { p_event_id: string; p_email?: string; p_name?: string; p_invitation_hash?: string }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never

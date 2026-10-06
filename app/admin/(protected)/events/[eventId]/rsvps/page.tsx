@@ -3,10 +3,12 @@ import { z } from "zod";
 
 import { findAdminEventById } from "@/lib/events/admin-event-service";
 import { listAdminRsvps } from "@/lib/events/rsvp-service";
+import { listRsvpInvitations } from "@/lib/events/rsvp-invitation-service";
+import { RsvpInvitations } from "@/components/rsvp-invitations";
 
 export default async function AdminRsvpsPage({ params, searchParams }: {
   params: Promise<{ eventId: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; invitationPage?: string }>;
 }) {
   const { eventId } = await params;
   const query = await searchParams;
@@ -14,6 +16,9 @@ export default async function AdminRsvpsPage({ params, searchParams }: {
   const page = pageResult.success ? pageResult.data : 1;
   const event = await findAdminEventById(eventId);
   const { responses, total, pageSize } = await listAdminRsvps(event.id, page);
+  const invitationPageResult = z.coerce.number().int().min(1).max(100000).safeParse(query.invitationPage ?? 1);
+  const invitationPage = invitationPageResult.success ? invitationPageResult.data : 1;
+  const invitationList = await listRsvpInvitations(event.id, invitationPage);
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
@@ -21,8 +26,10 @@ export default async function AdminRsvpsPage({ params, searchParams }: {
       <p className="mt-6 text-sm font-medium uppercase tracking-[0.16em] text-emerald-700">Confirmações de presença</p>
       <h1 className="mt-1 text-3xl font-semibold">{event.name}</h1>
       <p className="mt-3 text-slate-600">{total} resposta(s) recebida(s)</p>
+      {event.maxCompanions !== null ? <p className="mt-2 text-sm text-slate-600">Máximo de {event.maxCompanions} acompanhante(s) por convidado</p> : null}
       <Link href={`/e/${event.slug}/save-the-date`} target="_blank" rel="noreferrer"
         className="mt-3 inline-block text-sm text-emerald-700 underline">Abrir save the date para compartilhar</Link>
+      <RsvpInvitations eventId={event.id} invitations={invitationList.invitations} total={invitationList.total} page={invitationPage} />
       <div className="mt-6 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
         <table className="w-full text-left text-sm">
           <caption className="sr-only">Respostas de presença para {event.name}</caption>

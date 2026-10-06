@@ -48,6 +48,9 @@ export default async function EditAdminEventPage({
             eventDate: event.eventDate,
             isActive: event.isActive,
             name: event.name,
+            location: event.location,
+            mapsUrl: event.mapsUrl,
+            maxCompanions: event.maxCompanions,
             organizerContact: event.organizerContact,
             slug: event.slug,
           }}

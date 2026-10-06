@@ -1,8 +1,6 @@
-import { z } from "zod";
-
 import { validationError } from "@/lib/errors/application-error";
 import { readGuestRsvp, saveGuestRsvp } from "@/lib/events/rsvp-service";
-import { guestTokenSchema } from "@/lib/guests/guest-token";
+import { rsvpCredentialsSchema } from "@/lib/events/rsvp-contract";
 import { executeRoute } from "@/lib/http/execute-route";
 import { parseJsonBody } from "@/lib/http/parse-json-body";
 
@@ -12,9 +10,9 @@ type Context = { params: Promise<{ slug: string }> };
 export async function POST(request: Request, context: Context) {
   return executeRoute(async () => {
     const { slug } = await context.params;
-    const input = z.object({ guestToken: guestTokenSchema }).safeParse(await parseJsonBody(request));
-    if (!input.success) throw validationError("Token do convidado inválido.");
-    const rsvp = await readGuestRsvp(slug, input.data.guestToken);
+    const input = rsvpCredentialsSchema.safeParse(await parseJsonBody(request));
+    if (!input.success) throw validationError("Identificação do convidado inválida.");
+    const rsvp = await readGuestRsvp(slug, input.data);
     return Response.json({ rsvp }, { headers: { "Cache-Control": "no-store" } });
   });
 }

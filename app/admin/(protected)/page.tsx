@@ -155,6 +155,8 @@ export default async function AdminDashboardPage({
                   </div>
                 </div>
               </div>
+              {event.location ? <p className="mt-3 text-sm text-slate-600">{event.location}</p> : null}
+              {event.maxCompanions !== null ? <p className="mt-2 text-sm text-slate-600">Até {event.maxCompanions} acompanhante(s) por convidado</p> : null}
               <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-100 pt-4 text-sm">
                 <a href={event.eventUrl} target="_blank" rel="noreferrer" className="text-emerald-700 underline">
                   Abrir evento

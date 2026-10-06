@@ -1,4 +1,7 @@
 export type EventSummary = {
+  location: string | null;
+  mapsUrl: string | null;
+  maxCompanions: number | null;
   accentColor: string;
   availabilityUntil: string | null;
   closingMessage: string;

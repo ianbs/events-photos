@@ -21,6 +21,9 @@ export async function createEventAction(
       eventDate: String(formData.get("eventDate") ?? ""),
       isActive: formData.get("isActive") === "on",
       name: String(formData.get("name") ?? ""),
+      location: String(formData.get("location") ?? ""),
+      mapsUrl: String(formData.get("mapsUrl") ?? ""),
+      maxCompanions: String(formData.get("maxCompanions") ?? ""),
       organizerContact: String(formData.get("organizerContact") ?? ""),
       slug: String(formData.get("slug") ?? ""),
     });

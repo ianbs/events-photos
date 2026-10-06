@@ -17,9 +17,12 @@ import { eventBrandingColorsSchema } from "@/lib/events/event-branding-policy";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 const eventColumns =
-  "id,name,slug,event_date,is_active,closing_message,photos_available_until,organizer_contact" as const;
+  "id,name,slug,event_date,is_active,closing_message,photos_available_until,organizer_contact,location,maps_url,max_companions" as const;
 
 export type AdminEvent = {
+  location: string | null;
+  mapsUrl: string | null;
+  maxCompanions: number | null;
   availabilityUntil: string | null;
   closingMessage: string;
   eventDate: string;
@@ -45,6 +48,9 @@ export type AdminEventSummary = AdminEvent & {
 };
 
 type StoredAdminEvent = {
+  location: string | null;
+  maps_url: string | null;
+  max_companions: number | null;
   closing_message: string;
   event_date: string;
   id: string;
@@ -63,6 +69,9 @@ function mapAdminEvent(event: StoredAdminEvent): AdminEvent {
     id: event.id,
     isActive: event.is_active,
     name: event.name,
+    location: event.location,
+    mapsUrl: event.maps_url,
+    maxCompanions: event.max_companions,
     organizerContact: event.organizer_contact,
     slug: event.slug,
   };
@@ -94,6 +103,9 @@ function toStoredEventInput(input: EventInput) {
     event_date: input.eventDate,
     is_active: input.isActive,
     name: input.name,
+    location: input.location,
+    maps_url: input.mapsUrl,
+    max_companions: input.maxCompanions,
     organizer_contact: input.organizerContact,
     photos_available_until: input.availabilityUntil,
     slug: input.slug,

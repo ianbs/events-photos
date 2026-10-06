@@ -23,7 +23,7 @@ export async function findEventBySlug(
   const { data, error } = await supabase
     .from("events")
     .select(
-      "id,name,slug,event_date,is_active,primary_color,accent_color,cover_storage_path,logo_storage_path,closing_message,photos_available_until,organizer_contact",
+      "id,name,slug,event_date,is_active,primary_color,accent_color,cover_storage_path,logo_storage_path,closing_message,photos_available_until,organizer_contact,location,maps_url,max_companions",
     )
     .eq("slug", slugResult.data)
     .maybeSingle();
@@ -57,6 +57,9 @@ export async function findEventBySlug(
     id: data.id,
     logoImageUrl: urls.logoImageUrl,
     name: data.name,
+    location: data.location,
+    mapsUrl: data.maps_url,
+    maxCompanions: data.max_companions,
     organizerContact: data.organizer_contact,
     slug: data.slug,
     eventDate: data.event_date,

@@ -1,12 +1,14 @@
 import Image from "next/image";
 
 import type { EventSummary } from "@/lib/events/event";
+import { getEventMapsUrl } from "@/lib/events/event-location";
 
 export function EventPublicHeader({ event, label, description }: {
   event: EventSummary;
   label: string;
   description?: string;
 }) {
+  const mapsUrl = getEventMapsUrl(event);
   const formattedDate = new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "long", timeZone: "UTC",
   }).format(new Date(`${event.eventDate}T00:00:00Z`));
@@ -29,6 +31,9 @@ export function EventPublicHeader({ event, label, description }: {
     <h1 className="mt-2 text-center text-3xl font-semibold tracking-tight sm:text-4xl">{event.name}</h1>
     <div aria-hidden="true" className="mt-3 h-1 w-14 rounded-full bg-[var(--event-accent)]" />
     <p className="mt-3 text-slate-600"><time dateTime={event.eventDate}>{formattedDate}</time></p>
+    {event.location ? <p className="mt-3 max-w-lg whitespace-pre-line text-center text-slate-600">{event.location}</p> : null}
+    {mapsUrl ? <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+      className="mt-3 rounded-xl border border-[var(--event-primary)] px-4 py-2 text-sm font-medium text-[var(--event-primary)] hover:bg-slate-50">Abrir no mapa</a> : null}
     {description ? <p className="mt-5 max-w-lg text-center text-slate-600">{description}</p> : null}
   </>;
 }

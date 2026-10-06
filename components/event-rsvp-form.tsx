@@ -1,9 +1,10 @@
 "use client";
 
-import { type FormEvent, useEffect, useId, useState } from "react";
+import { type FormEvent, useCallback, useId, useState } from "react";
 
-import { rsvpInputSchema, rsvpResponseSchema, type Rsvp } from "@/lib/events/rsvp-contract";
-import { createGuestToken, getGuestTokenStorageKey, guestTokenSchema } from "@/lib/guests/guest-token";
+import { rsvpInputSchema, rsvpResponseSchema, type Rsvp, type RsvpCredentials } from "@/lib/events/rsvp-contract";
+import { RsvpAccess } from "@/components/rsvp-access";
+import { getRsvpCompanionLimit } from "@/lib/events/rsvp-companions";
 import { apiErrorResponseSchema } from "@/lib/photos/upload-contract";
 
 async function requestRsvp(slug: string, method: "POST" | "PUT", input: unknown, signal?: AbortSignal) {
@@ -21,52 +22,31 @@ async function requestRsvp(slug: string, method: "POST" | "PUT", input: unknown,
   return result.data.rsvp;
 }
 
-export function EventRsvpForm({ eventId, eventSlug }: { eventId: string; eventSlug: string }) {
+export function EventRsvpForm({ eventSlug, maxCompanions }: { eventSlug: string; maxCompanions: number | null }) {
+  const [access, setAccess] = useState<{ credentials: RsvpCredentials; rsvp: Rsvp | null } | null>(null);
+  const authorize = useCallback((credentials: RsvpCredentials, rsvp: Rsvp | null) => setAccess({ credentials, rsvp }), []);
+  return access ? <AuthenticatedRsvpForm eventSlug={eventSlug} maxCompanions={maxCompanions} credentials={access.credentials} initialRsvp={access.rsvp} onReset={() => setAccess(null)} />
+    : <RsvpAccess eventSlug={eventSlug} onAuthorized={authorize} />;
+}
+
+function AuthenticatedRsvpForm({ eventSlug, maxCompanions, credentials, initialRsvp, onReset }: {
+  eventSlug: string; maxCompanions: number | null; credentials: RsvpCredentials; initialRsvp: Rsvp | null; onReset: () => void;
+}) {
+  const companionLimit = getRsvpCompanionLimit(maxCompanions);
+  const companionsAllowed = companionLimit > 0;
   const nameId = useId();
   const companionsId = useId();
-  const [token, setToken] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [attending, setAttending] = useState<boolean | null>(null);
-  const [companions, setCompanions] = useState(0);
-  const [saved, setSaved] = useState<Rsvp | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "saving" | "error">("loading");
+  const [name, setName] = useState(initialRsvp?.name ?? "");
+  const [attending, setAttending] = useState<boolean | null>(initialRsvp?.attending ?? null);
+  const [companions, setCompanions] = useState(Math.min(initialRsvp?.companions ?? 0, companionLimit));
+  const [saved, setSaved] = useState<Rsvp | null>(initialRsvp);
+  const [status, setStatus] = useState<"ready" | "saving">("ready");
   const [message, setMessage] = useState("");
-  const [attempt, setAttempt] = useState(0);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    async function initialize() {
-      try {
-        const key = getGuestTokenStorageKey(eventId);
-        const stored = guestTokenSchema.safeParse(localStorage.getItem(key));
-        const guestToken = stored.success ? stored.data : createGuestToken();
-        // Save before sending so retries recover the same guest after a network failure.
-        localStorage.setItem(key, guestToken);
-        const rsvp = await requestRsvp(eventSlug, "POST", { guestToken }, controller.signal);
-        if (controller.signal.aborted) return;
-        setToken(guestToken);
-        setSaved(rsvp);
-        if (rsvp) {
-          setName(rsvp.name);
-          setAttending(rsvp.attending);
-          setCompanions(rsvp.companions);
-        }
-        setStatus("ready");
-        setMessage("");
-      } catch {
-        if (controller.signal.aborted) return;
-        setStatus("error");
-        setMessage("Não foi possível carregar sua resposta. Verifique sua conexão e permita o armazenamento no navegador.");
-      }
-    }
-    void initialize();
-    return () => controller.abort();
-  }, [eventId, eventSlug, attempt]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (status !== "ready" || !token) return;
-    const input = rsvpInputSchema.safeParse({ guestToken: token, name, attending, companions });
+    if (status !== "ready") return;
+    const input = rsvpInputSchema.safeParse({ credentials, name, attending, companions: companionsAllowed ? companions : 0 });
     if (!input.success) {
       setMessage("Informe seu nome, escolha uma resposta e revise os acompanhantes.");
       return;
@@ -93,9 +73,7 @@ export function EventRsvpForm({ eventId, eventSlug }: { eventId: string; eventSl
         {saved.attending ? `Presença confirmada para ${saved.name}${saved.companions ? ` e ${saved.companions} acompanhante(s)` : ""}.` : `Resposta registrada: ${saved.name} não poderá comparecer.`}
         {" "}Você pode atualizar sua resposta abaixo.
       </p> : null}
-      {status === "loading" ? <p role="status" className="mt-4 text-sm text-slate-600">Carregando…</p> : null}
-      {status === "error" ? <button type="button" onClick={() => { setStatus("loading"); setAttempt((value) => value + 1); }}
-        className="mt-4 text-sm text-[var(--event-primary)] underline">Tentar novamente</button> : null}
+      <button type="button" disabled={status === "saving"} onClick={onReset} className="mt-3 text-sm text-[var(--event-primary)] underline">Usar outro convite</button>
       <form onSubmit={submit} className="mt-5 space-y-5">
         <fieldset disabled={disabled} className="space-y-5 disabled:opacity-60">
           <div>
@@ -113,13 +91,14 @@ export function EventRsvpForm({ eventId, eventSlug }: { eventId: string; eventSl
                 onChange={() => { setAttending(false); setCompanions(0); }} className="accent-[var(--event-primary)]" /> Não poderei comparecer</label>
             </div>
           </fieldset>
-          {attending === true ? <div>
+          {attending === true && !companionsAllowed ? <p className="text-sm text-slate-600">Este evento não permite acompanhantes. Sua confirmação será apenas para você.</p> : null}
+          {attending === true && companionsAllowed ? <div>
             <label htmlFor={companionsId} className="block text-sm font-medium text-slate-700">Quantidade de acompanhantes</label>
-            <input id={companionsId} name="companions" type="number" min={0} max={10} required value={companions}
+            <input id={companionsId} name="companions" type="number" min={0} max={companionLimit} step={1} required value={companions}
               onChange={(event) => setCompanions(event.target.valueAsNumber)}
               aria-describedby={`${companionsId}-help`}
               className="mt-2 w-28 rounded-xl border border-slate-300 px-4 py-3" />
-            <p id={`${companionsId}-help`} className="mt-2 text-sm text-slate-500">Sem contar você. Informe 0 se vier sozinho(a).</p>
+            <p id={`${companionsId}-help`} className="mt-2 text-sm text-slate-500">Sem contar você. Máximo de {companionLimit} acompanhante(s). Informe 0 se vier sozinho(a).</p>
           </div> : null}
           <button type="submit" className="w-full rounded-xl bg-[var(--event-primary)] px-4 py-3 font-medium text-white hover:opacity-90 disabled:cursor-wait">
             {status === "saving" ? "Salvando…" : saved ? "Atualizar resposta" : "Enviar resposta"}

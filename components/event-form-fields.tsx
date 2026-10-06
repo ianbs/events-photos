@@ -8,6 +8,9 @@ import {
 } from "@/lib/events/event-validation";
 
 export type EventFormValues = {
+  location: string | null;
+  mapsUrl: string | null;
+  maxCompanions: number | null;
   availabilityUntil: string | null;
   closingMessage: string;
   eventDate: string;
@@ -60,7 +63,7 @@ export function EventFormFields({
 
       <label className="block">
         <span className="text-sm font-medium text-slate-700">
-          Endereço do evento
+          Endereço da página do evento
         </span>
         <div className="mt-2 flex rounded-xl border border-slate-300 bg-white focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-100">
           <span className="flex items-center border-r border-slate-200 px-3 text-sm text-slate-500">
@@ -104,6 +107,31 @@ export function EventFormFields({
           defaultValue={defaultValues?.eventDate}
           className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
         />
+      </label>
+
+      <label className="block">
+        <span className="text-sm font-medium text-slate-700">Localização do evento</span>
+        <input name="location" type="text" maxLength={500}
+          defaultValue={defaultValues?.location ?? ""}
+          placeholder="Ex.: Espaço Jardim, Rua das Flores, 123, São Paulo"
+          className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" />
+        <span className="mt-2 block text-xs text-slate-500">Opcional. Informe o local e o endereço para os convidados.</span>
+      </label>
+
+      <label className="block">
+        <span className="text-sm font-medium text-slate-700">Link para abrir no mapa</span>
+        <input name="mapsUrl" type="url" maxLength={2000}
+          defaultValue={defaultValues?.mapsUrl ?? ""} placeholder="https://..."
+          className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" />
+        <span className="mt-2 block text-xs text-slate-500">Opcional. Cole um link do Google Maps, Waze, Apple Maps ou outro serviço. Sem link, usaremos a localização para buscar no Google Maps.</span>
+      </label>
+
+      <label className="block">
+        <span className="text-sm font-medium text-slate-700">Número máximo de acompanhantes por convidado</span>
+        <input name="maxCompanions" type="number" min={0} max={2147483647} step={1}
+          defaultValue={defaultValues?.maxCompanions ?? ""} placeholder="Ex.: 2"
+          className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" />
+        <span className="mt-2 block text-xs text-slate-500">Sem contar o próprio convidado. Informe 0 para não permitir acompanhantes. Deixe vazio para usar o limite padrão de 10.</span>
       </label>
 
       <label className="flex items-start gap-3 rounded-xl bg-slate-50 p-4">
