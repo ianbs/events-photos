@@ -177,6 +177,21 @@ O save the date usa apenas o convite individual por link ou código. Abrir o lin
 
 Na página administrativa de confirmações, cadastre nome, WhatsApp com código do país e e-mail opcional de contato. O e-mail não autentica convidados. A tabela reúne contatos, status da confirmação e ações para editar o cadastro, recuperar o mesmo link/código, substituir o código ou revogar o convite. Consultar um convite não invalida o link anterior. Substituir o código mantém a resposta existente e invalida o código anterior.
 
+O cadastro também funciona em lote, sem importação de arquivo: use **+ Adicionar
+convidado**, preencha nome e contatos opcionais, remova linhas se necessário e
+clique em **Salvar todos**. São aceitos até 100 convidados por envio. Campos
+inválidos e e-mails repetidos na lista são indicados antes de gravar. Se um e-mail
+já estiver cadastrado no evento, o lote inteiro é rejeitado, preservando os dados
+preenchidos. Cada convidado recebe seu próprio código e link recuperável.
+
+O lote é gravado em uma única transação pela função `create_rsvp_guest_batch`,
+reutilizando o cadastro individual. Um identificador do envio evita duplicações
+ao repetir uma tentativa cuja resposta foi perdida. Em falhas de conexão, a
+lista fica preservada para **Verificar e salvar lista**. O administrador pode
+continuar incluindo novos lotes após salvar. A migration `add_bulk_rsvp_guests`
+cria a função e os comprovantes privados de envio; clientes públicos não possuem
+acesso direto à tabela nem à função.
+
 O banco guarda o código recuperável em uma coluna restrita à administração e um hash SHA-256 para a autorização pública. RLS, grants e validação de administrador impedem acesso direto dos clientes. Links levam o segredo no fragmento `#convite=`, removido pela interface; APIs recebem credenciais no corpo e respostas administrativas usam `no-store`. Convites legados armazenados apenas como hash precisam ter o código substituído uma vez; os links antigos não são revogados automaticamente pela migração.
 
 Para WhatsApp, recupere o convite e use **Abrir mensagem no WhatsApp** ou selecione convidados com telefone e convite ativo e exporte o CSV com telefone, link e mensagem personalizada. A exportação prepara a distribuição; não envia mensagens. Disparo automático em massa requer uma integração com a API oficial do WhatsApp Business, templates e fila de envios, com acompanhamento de entrega e falhas.

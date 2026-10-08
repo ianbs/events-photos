@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { apiErrorResponseSchema } from "@/lib/photos/upload-contract";
+import { RsvpGuestBatchForm } from "@/components/rsvp-guest-batch-form";
 
 type Guest = {
   guest_id: string; name: string; email: string | null; phone: string | null;
@@ -70,8 +71,17 @@ export function RsvpInvitations({ eventId, invitations, total, page }: {
 
   return <section className="mt-8 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
     <h2 className="text-xl font-semibold">Cadastro de convidados</h2>
-    <p className="mt-2 text-sm text-slate-600">Cadastre cada convidado uma vez. Seu código e link ficam disponíveis aqui para consulta e compartilhamento a qualquer momento.</p>
-    <form key={editing?.guest_id ?? "new"} onSubmit={save} className="mt-5 grid gap-3 sm:grid-cols-3">
+    <p className="mt-2 text-sm text-slate-600">Adicione convidados pelo botão + e salve a lista inteira de uma vez. Os códigos e links individuais ficam disponíveis abaixo para consulta e compartilhamento.</p>
+    <RsvpGuestBatchForm eventId={eventId} disabled={pending} onSaved={() => {
+      setGenerated(null); setMessage(""); setSelected([]);
+      if (page > 1) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("invitationPage");
+        router.replace(`${url.pathname}${url.search}`);
+      } else router.refresh();
+    }} />
+    {editing ? <form key={editing.guest_id} onSubmit={save} className="mt-6 grid gap-3 border-t border-slate-200 pt-5 sm:grid-cols-3">
+      <h3 className="font-semibold sm:col-span-3">Editar convidado</h3>
       <label className="text-sm">Nome<input name="name" required maxLength={200} disabled={pending} defaultValue={editing?.name ?? ""}
         className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" /></label>
       <label className="text-sm">WhatsApp (opcional)<input name="phone" type="tel" maxLength={30} disabled={pending} defaultValue={editing?.phone ?? ""}
@@ -83,7 +93,7 @@ export function RsvpInvitations({ eventId, invitations, total, page }: {
         <button disabled={pending} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm text-white disabled:opacity-60">{editing ? "Salvar convidado" : "Cadastrar convidado"}</button>
         {editing ? <button type="button" disabled={pending} onClick={() => setEditing(null)} className="text-sm text-slate-600 underline">Cancelar edição</button> : null}
       </div>
-    </form>
+    </form> : null}
     {message ? <p role="status" className="mt-3 text-sm text-slate-700">{message}</p> : null}
     {generated ? <div className="mt-4 space-y-3 rounded-xl bg-emerald-50 p-4 text-sm">
       <label className="block">Link individual<input readOnly value={generated.url} onFocus={(e) => e.target.select()}

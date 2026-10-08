@@ -3,7 +3,7 @@ const { requireAdmin, createAdminSupabaseClient } = vi.hoisted(() => ({ requireA
 vi.mock("@/lib/auth/admin-authorization", () => ({ requireAdmin }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminSupabaseClient }));
 vi.mock("@/lib/config/server-environment", () => ({ getServerEnvironment: () => ({ NEXT_PUBLIC_APP_URL: "https://events.example.com" }) }));
-import { changeRsvpInvitation, createRsvpInvitation, exportRsvpInvitations, listRsvpInvitations } from "./rsvp-invitation-service";
+import { changeRsvpInvitation, createRsvpInvitation, createRsvpInvitationBatch, exportRsvpInvitations, listRsvpInvitations } from "./rsvp-invitation-service";
 
 const eventId = "11111111-1111-4111-8111-111111111111";
 const code = "a".repeat(43);
@@ -81,5 +81,60 @@ describe("guest registration and recoverable invitations", () => {
   it("rejects duplicate email registration without overwriting the existing guest", async () => {
     const { rpc } = setup(); rpc.mockResolvedValue({ data: null, error: { code: "23505" } });
     await expect(createRsvpInvitation(eventId, { name: "Ana", email: "ana@example.com" })).rejects.toMatchObject({ status: 409 });
+  });
+});
+
+describe("bulk guest registration", () => {
+  const batchId = "22222222-2222-4222-8222-222222222222";
+  const input = { batchId, guests: [{ name: " Ana ", email: "ANA@example.com" }, { name: "Bruno", phone: "+55 (11) 98888-8888" }] };
+  beforeEach(() => { vi.clearAllMocks(); requireAdmin.mockResolvedValue({ userId: "admin" }); });
+
+  it("checks admin membership before inspecting or writing a batch", async () => {
+    requireAdmin.mockRejectedValue(new Error("forbidden"));
+    await expect(createRsvpInvitationBatch(eventId, input)).rejects.toThrow("forbidden");
+    expect(createAdminSupabaseClient).not.toHaveBeenCalled();
+  });
+  it("normalizes the full batch and submits one atomic RPC with distinct invitation codes", async () => {
+    const { rpc } = setup(); rpc.mockResolvedValue({ data: 2, error: null });
+    await expect(createRsvpInvitationBatch(eventId, input)).resolves.toEqual({ savedCount: 2 });
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith("create_rsvp_guest_batch", {
+      p_event_id: eventId, p_batch_id: batchId, p_input_hash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      p_guests: [
+        { name: "Ana", email: "ana@example.com", phone: null, code: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/) },
+        { name: "Bruno", phone: "5511988888888", email: null, code: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/) },
+      ],
+    });
+    const args = rpc.mock.calls[0][1];
+    expect(args.p_guests[0].code).not.toBe(args.p_guests[1].code);
+  });
+  it.each([
+    { batchId, guests: [] }, { batchId, guests: [{ name: "Ana" }, { name: " " }] },
+    { batchId, guests: [{ name: "Ana", email: "ana@example.com" }, { name: "Bruno", email: " ANA@example.com " }] },
+    { batchId, guests: Array.from({ length: 101 }, () => ({ name: "Ana" })) },
+    { batchId: "invalid", guests: [{ name: "Ana" }] },
+  ])("rejects the whole invalid batch before invoking the database %j", async (invalid) => {
+    const { rpc } = setup();
+    await expect(createRsvpInvitationBatch(eventId, invalid)).rejects.toMatchObject({ status: 400 });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+  it("uses a stable receipt hash across retries", async () => {
+    const { rpc } = setup(); rpc.mockResolvedValue({ data: 2, error: null });
+    await createRsvpInvitationBatch(eventId, input);
+    await createRsvpInvitationBatch(eventId, input);
+    expect(rpc.mock.calls[0][1].p_input_hash).toBe(rpc.mock.calls[1][1].p_input_hash);
+    expect(rpc.mock.calls[0][1].p_batch_id).toBe(rpc.mock.calls[1][1].p_batch_id);
+  });
+  it("reports an email conflict without claiming partial success", async () => {
+    const { rpc } = setup(); rpc.mockResolvedValue({ data: null, error: { code: "23505" } });
+    await expect(createRsvpInvitationBatch(eventId, input)).rejects.toMatchObject({ status: 409 });
+  });
+  it("rejects reuse of a receipt for a changed list", async () => {
+    const { rpc } = setup(); rpc.mockResolvedValue({ data: null, error: { code: "22023" } });
+    await expect(createRsvpInvitationBatch(eventId, input)).rejects.toMatchObject({ status: 400 });
+  });
+  it("does not acknowledge a missing or partial result", async () => {
+    const { rpc } = setup(); rpc.mockResolvedValue({ data: 1, error: null });
+    await expect(createRsvpInvitationBatch(eventId, input)).rejects.toMatchObject({ status: 503 });
   });
 });
