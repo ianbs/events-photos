@@ -1,16 +1,25 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { CSSProperties } from "react";
 
 import { EventPublicHeader } from "@/components/event-public-header";
 import { EventPhotoUploader } from "@/components/event-photo-uploader";
 import { findEventBySlug } from "@/lib/events/find-event-by-slug";
+import { createEventMetadata } from "@/lib/events/event-metadata";
 
 export const dynamic = "force-dynamic";
 
 type EventPageProps = {
   params: Promise<{ slug: string }>;
 };
+
+export async function generateMetadata({ params }: EventPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const event = await findEventBySlug(slug);
+  if (!event) notFound();
+  return createEventMetadata(event, "gallery");
+}
 
 type EventThemeStyle = CSSProperties & {
   "--event-accent": string;

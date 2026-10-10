@@ -16,6 +16,8 @@ export async function createEventAction(
 ): Promise<CreateEventFormState> {
   try {
     await createAdminEvent({
+      instructions: String(formData.get("instructions") ?? ""),
+      whatsappMessage: String(formData.get("whatsappMessage") ?? ""),
       availabilityUntil: String(formData.get("availabilityUntil") ?? ""),
       closingMessage: String(formData.get("closingMessage") ?? ""),
       eventDate: String(formData.get("eventDate") ?? ""),

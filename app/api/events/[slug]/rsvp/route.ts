@@ -12,8 +12,8 @@ export async function POST(request: Request, context: Context) {
     const { slug } = await context.params;
     const input = rsvpCredentialsSchema.safeParse(await parseJsonBody(request));
     if (!input.success) throw validationError("Identificação do convidado inválida.");
-    const rsvp = await readGuestRsvp(slug, input.data);
-    return Response.json({ rsvp }, { headers: { "Cache-Control": "no-store" } });
+    const access = await readGuestRsvp(slug, input.data);
+    return Response.json(access, { headers: { "Cache-Control": "no-store" } });
   });
 }
 

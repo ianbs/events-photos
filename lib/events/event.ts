@@ -1,4 +1,5 @@
 export type EventSummary = {
+  instructions: string | null;
   location: string | null;
   mapsUrl: string | null;
   maxCompanions: number | null;

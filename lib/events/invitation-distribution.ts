@@ -1,5 +1,7 @@
-export function createInvitationMessage(name: string, eventName: string, url: string) {
-  return `Olá, ${name}! Você está convidado(a) para ${eventName}. Confirme sua presença pelo seu link individual: ${url}`;
+import { DEFAULT_WHATSAPP_MESSAGE, renderInvitationMessage } from "./invitation-message-template";
+
+export function createInvitationMessage(name: string, eventName: string, url: string, template: string | null = null) {
+  return renderInvitationMessage(template || DEFAULT_WHATSAPP_MESSAGE, name, eventName, url);
 }
 
 export function createWhatsAppUrl(phone: string | null, message: string) {

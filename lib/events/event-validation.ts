@@ -61,6 +61,8 @@ export const eventMapsUrlSchema = z.preprocess(
 );
 
 export const createEventSchema = z.object({
+  instructions: optionalText(5000).default(null),
+  whatsappMessage: optionalText(3000).default(null),
   location: optionalText(500).default(null),
   mapsUrl: eventMapsUrlSchema.default(null),
   maxCompanions: z.preprocess(

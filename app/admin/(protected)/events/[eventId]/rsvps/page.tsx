@@ -26,10 +26,10 @@ export default async function AdminRsvpsPage({ params, searchParams }: {
       <p className="mt-6 text-sm font-medium uppercase tracking-[0.16em] text-emerald-700">Confirmações de presença</p>
       <h1 className="mt-1 text-3xl font-semibold">{event.name}</h1>
       <p className="mt-3 text-slate-600">{total} resposta(s) recebida(s)</p>
-      {event.maxCompanions !== null ? <p className="mt-2 text-sm text-slate-600">Máximo de {event.maxCompanions} acompanhante(s) por convidado</p> : null}
+      <p className="mt-2 text-sm text-slate-600">Limite padrão: {event.maxCompanions ?? 10} acompanhante(s). Você pode definir um limite individual no cadastro de cada convidado.</p>
       <Link href={`/e/${event.slug}/save-the-date`} target="_blank" rel="noreferrer"
         className="mt-3 inline-block text-sm text-emerald-700 underline">Abrir save the date para compartilhar</Link>
-      <RsvpInvitations eventId={event.id} invitations={invitationList.invitations} total={invitationList.total} page={invitationPage} />
+      <RsvpInvitations eventId={event.id} eventMaxCompanions={event.maxCompanions} invitations={invitationList.invitations} total={invitationList.total} page={invitationPage} />
       <div className="mt-6 overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
         <table className="w-full text-left text-sm">
           <caption className="sr-only">Respostas de presença para {event.name}</caption>
@@ -40,7 +40,8 @@ export default async function AdminRsvpsPage({ params, searchParams }: {
           <tbody>{responses.map((response) => <tr key={response.guest_id} className="border-t border-slate-100">
             <td className="p-4 font-medium">{response.name}</td>
             <td className={`p-4 ${response.attending ? "text-emerald-700" : "text-slate-600"}`}>{response.attending ? "Confirmada" : "Não comparecerá"}</td>
-            <td className="p-4">{response.companions}</td>
+            <td className="p-4">{response.companions}
+              {response.companion_names.length ? <p className="mt-1 whitespace-pre-line text-xs text-slate-500">{response.companion_names.join("\n")}</p> : null}</td>
             <td className="whitespace-nowrap p-4 text-slate-500">{new Intl.DateTimeFormat("pt-BR", {
               dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo",
             }).format(new Date(response.updated_at))}</td>

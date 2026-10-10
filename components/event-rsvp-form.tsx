@@ -4,7 +4,6 @@ import { type FormEvent, useCallback, useId, useState } from "react";
 
 import { rsvpInputSchema, rsvpResponseSchema, type Rsvp, type RsvpCredentials } from "@/lib/events/rsvp-contract";
 import { RsvpAccess } from "@/components/rsvp-access";
-import { getRsvpCompanionLimit } from "@/lib/events/rsvp-companions";
 import { apiErrorResponseSchema } from "@/lib/photos/upload-contract";
 
 async function requestRsvp(slug: string, method: "POST" | "PUT", input: unknown, signal?: AbortSignal) {
@@ -22,23 +21,24 @@ async function requestRsvp(slug: string, method: "POST" | "PUT", input: unknown,
   return result.data.rsvp;
 }
 
-export function EventRsvpForm({ eventSlug, maxCompanions }: { eventSlug: string; maxCompanions: number | null }) {
-  const [access, setAccess] = useState<{ credentials: RsvpCredentials; rsvp: Rsvp | null } | null>(null);
-  const authorize = useCallback((credentials: RsvpCredentials, rsvp: Rsvp | null) => setAccess({ credentials, rsvp }), []);
-  return access ? <AuthenticatedRsvpForm eventSlug={eventSlug} maxCompanions={maxCompanions} credentials={access.credentials} initialRsvp={access.rsvp} onReset={() => setAccess(null)} />
+export function EventRsvpForm({ eventSlug }: { eventSlug: string }) {
+  const [access, setAccess] = useState<{ credentials: RsvpCredentials; rsvp: Rsvp | null; companionLimit: number } | null>(null);
+  const authorize = useCallback((credentials: RsvpCredentials, rsvp: Rsvp | null, companionLimit: number) => setAccess({ credentials, rsvp, companionLimit }), []);
+  return access ? <AuthenticatedRsvpForm eventSlug={eventSlug} companionLimit={access.companionLimit} credentials={access.credentials} initialRsvp={access.rsvp} onReset={() => setAccess(null)} />
     : <RsvpAccess eventSlug={eventSlug} onAuthorized={authorize} />;
 }
 
-function AuthenticatedRsvpForm({ eventSlug, maxCompanions, credentials, initialRsvp, onReset }: {
-  eventSlug: string; maxCompanions: number | null; credentials: RsvpCredentials; initialRsvp: Rsvp | null; onReset: () => void;
+function AuthenticatedRsvpForm({ eventSlug, companionLimit, credentials, initialRsvp, onReset }: {
+  eventSlug: string; companionLimit: number; credentials: RsvpCredentials; initialRsvp: Rsvp | null; onReset: () => void;
 }) {
-  const companionLimit = getRsvpCompanionLimit(maxCompanions);
   const companionsAllowed = companionLimit > 0;
   const nameId = useId();
   const companionsId = useId();
+  const companionNamesId = useId();
   const [name, setName] = useState(initialRsvp?.name ?? "");
   const [attending, setAttending] = useState<boolean | null>(initialRsvp?.attending ?? null);
   const [companions, setCompanions] = useState(Math.min(initialRsvp?.companions ?? 0, companionLimit));
+  const [companionNames, setCompanionNames] = useState((initialRsvp?.companion_names ?? []).slice(0, companionLimit).join("\n"));
   const [saved, setSaved] = useState<Rsvp | null>(initialRsvp);
   const [status, setStatus] = useState<"ready" | "saving">("ready");
   const [message, setMessage] = useState("");
@@ -46,9 +46,12 @@ function AuthenticatedRsvpForm({ eventSlug, maxCompanions, credentials, initialR
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (status !== "ready") return;
-    const input = rsvpInputSchema.safeParse({ credentials, name, attending, companions: companionsAllowed ? companions : 0 });
+    const input = rsvpInputSchema.safeParse({ credentials, name, attending, companions: companionsAllowed ? companions : 0,
+      companionNames: attending && companionsAllowed ? companionNames.split(/\r?\n/).map((name) => name.trim()).filter(Boolean) : [],
+    });
     if (!input.success) {
-      setMessage("Informe seu nome, escolha uma resposta e revise os acompanhantes.");
+      setMessage(input.error.issues.find((issue) => issue.path[0] === "companionNames")?.message
+        ?? "Informe seu nome, escolha uma resposta e revise a quantidade e os nomes dos acompanhantes.");
       return;
     }
     setStatus("saving");
@@ -71,6 +74,7 @@ function AuthenticatedRsvpForm({ eventSlug, maxCompanions, credentials, initialR
       <h2 id="rsvp-heading" className="text-xl font-semibold">Confirmação de presença</h2>
       {saved ? <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
         {saved.attending ? `Presença confirmada para ${saved.name}${saved.companions ? ` e ${saved.companions} acompanhante(s)` : ""}.` : `Resposta registrada: ${saved.name} não poderá comparecer.`}
+        {saved.companion_names.length ? ` Acompanhantes: ${saved.companion_names.join(", ")}.` : ""}
         {" "}Você pode atualizar sua resposta abaixo.
       </p> : null}
       <button type="button" disabled={status === "saving"} onClick={onReset} className="mt-3 text-sm text-[var(--event-primary)] underline">Usar outro convite</button>
@@ -88,17 +92,25 @@ function AuthenticatedRsvpForm({ eventSlug, maxCompanions, credentials, initialR
               <label className="flex items-center gap-2"><input type="radio" name="attending" required checked={attending === true}
                 onChange={() => setAttending(true)} className="accent-[var(--event-primary)]" /> Sim, estarei presente</label>
               <label className="flex items-center gap-2"><input type="radio" name="attending" required checked={attending === false}
-                onChange={() => { setAttending(false); setCompanions(0); }} className="accent-[var(--event-primary)]" /> Não poderei comparecer</label>
+                onChange={() => { setAttending(false); setCompanions(0); setCompanionNames(""); }} className="accent-[var(--event-primary)]" /> Não poderei comparecer</label>
             </div>
           </fieldset>
-          {attending === true && !companionsAllowed ? <p className="text-sm text-slate-600">Este evento não permite acompanhantes. Sua confirmação será apenas para você.</p> : null}
+          {attending === true && !companionsAllowed ? <p className="text-sm text-slate-600">Seu convite não permite acompanhantes. Sua confirmação será apenas para você.</p> : null}
           {attending === true && companionsAllowed ? <div>
             <label htmlFor={companionsId} className="block text-sm font-medium text-slate-700">Quantidade de acompanhantes</label>
             <input id={companionsId} name="companions" type="number" min={0} max={companionLimit} step={1} required value={companions}
-              onChange={(event) => setCompanions(event.target.valueAsNumber)}
+              onChange={(event) => { setCompanions(event.target.valueAsNumber); if (event.target.valueAsNumber === 0) setCompanionNames(""); }}
               aria-describedby={`${companionsId}-help`}
               className="mt-2 w-28 rounded-xl border border-slate-300 px-4 py-3" />
             <p id={`${companionsId}-help`} className="mt-2 text-sm text-slate-500">Sem contar você. Máximo de {companionLimit} acompanhante(s). Informe 0 se vier sozinho(a).</p>
+          </div> : null}
+          {attending === true && companionsAllowed && companions > 0 ? <div>
+            <label htmlFor={companionNamesId} className="block text-sm font-medium text-slate-700">Nomes dos acompanhantes (opcional)</label>
+            <textarea id={companionNamesId} name="companionNames" rows={3} maxLength={20000} value={companionNames}
+              onChange={(event) => setCompanionNames(event.target.value)} aria-describedby={`${companionNamesId}-help`}
+              placeholder={"Ex.: João Silva\nMaria Silva"}
+              className="mt-2 w-full resize-y rounded-xl border border-slate-300 px-4 py-3 focus:outline-2 focus:outline-[var(--event-primary)]" />
+            <p id={`${companionNamesId}-help`} className="mt-2 text-sm text-slate-500">Informe um nome por linha, até {companions} nome(s). Cada nome pode ter até 200 caracteres.</p>
           </div> : null}
           <button type="submit" className="w-full rounded-xl bg-[var(--event-primary)] px-4 py-3 font-medium text-white hover:opacity-90 disabled:cursor-wait">
             {status === "saving" ? "Salvando…" : saved ? "Atualizar resposta" : "Enviar resposta"}

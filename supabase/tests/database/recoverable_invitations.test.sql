@@ -3,7 +3,7 @@ select plan(7);
 
 select ok(not has_table_privilege('anon', 'public.event_rsvp_identities', 'select'), 'anonymous clients cannot recover invitation secrets');
 select ok(not has_table_privilege('authenticated', 'public.event_rsvp_identities', 'select'), 'authenticated clients cannot recover secrets directly');
-select ok(not has_function_privilege('anon', 'public.create_rsvp_guest(uuid,text,text,text,text)', 'execute'), 'anonymous clients cannot create guests');
+select ok(not has_function_privilege('anon', 'public.create_rsvp_guest(uuid,text,text,text,text,integer)', 'execute'), 'anonymous clients cannot create guests');
 
 insert into public.events (id, name, slug, event_date)
 values ('50000000-0000-4000-8000-000000000001', 'Recoverable invitation', 'recoverable-invitation-test', current_date);

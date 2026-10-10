@@ -181,7 +181,15 @@ O banco guarda o código recuperável em uma coluna restrita à administração 
 
 Para WhatsApp, recupere o convite e use **Abrir mensagem no WhatsApp** ou selecione convidados com telefone e convite ativo e exporte o CSV com telefone, link e mensagem personalizada. A exportação prepara a distribuição; não envia mensagens. Disparo automático em massa requer uma integração com a API oficial do WhatsApp Business, templates e fila de envios, com acompanhamento de entrega e falhas.
 
-O evento configura o **máximo de acompanhantes por convidado**, sem contar o próprio convidado. Com 0, a confirmação é individual; com 1, permite até um acompanhante. Sem valor configurado, o padrão é 10. Formulário, servidor e banco aplicam o mesmo limite. Respostas anteriores são preservadas; ao atualizá-las, a quantidade é ajustada ao limite atual.
+Na criação e edição do evento, **Orientações sobre o evento** permite informar traje, horário de chegada e outras instruções no save the date, mantendo as quebras de linha. **Mensagem do WhatsApp** define o texto usado na recuperação de convites e no CSV. Use `{nome}`, `{evento}` e `{link}`; se o link for omitido, ele será acrescentado ao final. Um campo vazio usa a mensagem padrão. Também é possível ajustar a mensagem de um convidado antes de abrir o WhatsApp, apenas para aquele envio.
+
+A prévia dos links no WhatsApp usa o nome do evento como título, com data, local e orientações na descrição. Sem orientações, o convite usa uma mensagem para reservar a data e confirmar presença. As páginas de convite e galeria geram metadados próprios no servidor; os códigos individuais e os nomes dos convidados não entram na prévia.
+
+**Excluir convidado** exige confirmação na interface e remove, em uma transação, o cadastro do convite e a resposta de presença. O código deixa de autorizar acesso. Fotos existentes são preservadas; o registro técnico de upload só é removido quando não possui fotos. A operação é restrita ao servidor administrativo e ao evento selecionado.
+
+O evento configura o **limite padrão de acompanhantes**, sem contar o próprio convidado; sem configuração, o padrão é 10. No cadastro de cada convidado, **Máximo de acompanhantes deste convidado** permite substituir o padrão por uma quantidade individual. Vazio herda o evento e 0 permite apenas o convidado. O limite individual pode ser maior ou menor que o padrão. O convite recupera seu limite no servidor, inclusive antes da primeira resposta; formulário, servidor e banco aplicam a mesma regra.
+
+Na confirmação, o convidado informa a quantidade e, opcionalmente, os **nomes dos acompanhantes**, um por linha, até a quantidade selecionada. Os nomes são salvos na resposta e exibidos nas tabelas administrativas. Ao recusar presença ou informar zero acompanhantes, os nomes são limpos. Mudanças de limite preservam respostas anteriores; a próxima confirmação deve respeitar o novo limite.
 
 Aplique migrations antes de publicar e regenere os tipos com `pnpm supabase:types`. Verifique cadastro, recuperação do mesmo link após recarregar, edição de contatos, confirmação em dois dispositivos, revogação e exportação sem convidados de outros eventos.
 

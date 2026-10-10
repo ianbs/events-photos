@@ -17,6 +17,8 @@ export async function updateEventAction(
 ): Promise<EditEventFormState> {
   try {
     await updateAdminEvent(eventId, {
+      instructions: String(formData.get("instructions") ?? ""),
+      whatsappMessage: String(formData.get("whatsappMessage") ?? ""),
       availabilityUntil: String(formData.get("availabilityUntil") ?? ""),
       closingMessage: String(formData.get("closingMessage") ?? ""),
       eventDate: String(formData.get("eventDate") ?? ""),
@@ -39,5 +41,7 @@ export async function updateEventAction(
 
   revalidatePath("/admin");
   revalidatePath(`/e/${String(formData.get("slug") ?? "")}`);
+  revalidatePath(`/e/${String(formData.get("slug") ?? "")}/save-the-date`);
+  revalidatePath(`/admin/events/${eventId}/rsvps`);
   redirect("/admin?status=updated");
 }

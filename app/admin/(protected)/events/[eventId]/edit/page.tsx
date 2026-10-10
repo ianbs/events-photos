@@ -43,6 +43,8 @@ export default async function EditAdminEventPage({
         <EditEventForm
           eventId={event.id}
           initialValues={{
+            instructions: event.instructions,
+            whatsappMessage: event.whatsappMessage,
             availabilityUntil: event.availabilityUntil,
             closingMessage: event.closingMessage,
             eventDate: event.eventDate,

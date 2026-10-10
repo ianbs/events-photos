@@ -80,6 +80,8 @@ describe("admin event creation", () => {
       slug: "evento-de-teste",
     });
     expect(insert).toHaveBeenCalledWith({
+      instructions: null,
+      whatsapp_message: null,
       closing_message: "Obrigado por compartilhar este momento conosco!",
       event_date: "2026-08-16",
       is_active: true,
@@ -101,6 +103,16 @@ describe("admin event creation", () => {
         slug: validInput.slug, event_date: validInput.eventDate, is_active: true },
       error: null,
     });
+    createAdminSupabaseClient.mockReturnValue(client);
+    const { createAdminEvent } = await import("./admin-event-service");
+    await expect(createAdminEvent({ ...validInput, ...details })).resolves.toMatchObject(details);
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining(stored));
+  });
+
+  it("persists invitation instructions and a WhatsApp message", async () => {
+    const details = { instructions: "Traje social.\nChegue às 18h.", whatsappMessage: "Olá, {nome}! {evento}: {link}" };
+    const stored = { instructions: details.instructions, whatsapp_message: details.whatsappMessage };
+    const { client, insert } = createInsertClient({ data: { ...stored }, error: null });
     createAdminSupabaseClient.mockReturnValue(client);
     const { createAdminEvent } = await import("./admin-event-service");
     await expect(createAdminEvent({ ...validInput, ...details })).resolves.toMatchObject(details);
@@ -172,6 +184,8 @@ describe("admin event update", () => {
       "11111111-1111-4111-8111-111111111111",
     );
     expect(update).toHaveBeenCalledWith({
+      instructions: null,
+      whatsapp_message: null,
       closing_message: "Obrigado por compartilhar este momento conosco!",
       event_date: "2026-08-16",
       is_active: false,

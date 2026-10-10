@@ -3,6 +3,18 @@ import { createInvitationCsv, createInvitationMessage, createWhatsAppUrl } from 
 import { rsvpGuestInputSchema } from "./rsvp-guest-contract";
 
 describe("WhatsApp invitation preparation", () => {
+  it("personalizes the configured message and preserves line breaks", () => {
+    expect(createInvitationMessage("Ana", "Festa", "https://example.com/convite", "Olá, {nome}!\nEsperamos você em {evento}.\n{link}"))
+      .toBe("Olá, Ana!\nEsperamos você em Festa.\nhttps://example.com/convite");
+  });
+  it("always includes the private invitation link", () => {
+    expect(createInvitationMessage("Ana", "Festa", "https://example.com/convite", "Venha celebrar!"))
+      .toBe("Venha celebrar!\n\nhttps://example.com/convite");
+  });
+  it("does not interpret placeholders contained in guest names", () => {
+    expect(createInvitationMessage("{link}", "{nome}", "https://example.com/convite", "{nome} · {evento} · {link}"))
+      .toBe("{link} · {nome} · https://example.com/convite");
+  });
   it("normalizes international phone formatting and rejects invalid numbers", () => {
     expect(rsvpGuestInputSchema.parse({ name: "Ana", phone: "+55 (11) 99999-9999" }).phone).toBe("5511999999999");
     expect(rsvpGuestInputSchema.safeParse({ name: "Ana", phone: "not-a-number" }).success).toBe(false);

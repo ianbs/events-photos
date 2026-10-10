@@ -1,3 +1,3 @@
-export function getRsvpCompanionLimit(maxCompanions: number | null): number {
-  return maxCompanions ?? 10;
+export function getRsvpCompanionLimit(maxCompanions: number | null, guestMaxCompanions: number | null = null): number {
+  return guestMaxCompanions ?? maxCompanions ?? 10;
 }

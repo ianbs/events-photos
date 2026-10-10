@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { invitationCodeSchema, rsvpResponseSchema, type Rsvp, type RsvpCredentials } from "@/lib/events/rsvp-contract";
+import { invitationCodeSchema, rsvpAccessResponseSchema, type Rsvp, type RsvpCredentials } from "@/lib/events/rsvp-contract";
 import { apiErrorResponseSchema } from "@/lib/photos/upload-contract";
 
 export function RsvpAccess({ eventSlug, onAuthorized }: {
-  eventSlug: string; onAuthorized: (credentials: RsvpCredentials, rsvp: Rsvp | null) => void;
+  eventSlug: string; onAuthorized: (credentials: RsvpCredentials, rsvp: Rsvp | null, companionLimit: number) => void;
 }) {
   const [code, setCode] = useState("");
   const [pending, setPending] = useState(false);
@@ -26,8 +26,8 @@ export function RsvpAccess({ eventSlug, onAuthorized }: {
       setPending(true); setMessage("");
       try {
         const credentials = invitationCredentials(code);
-        const rsvp = await accessInvitation(eventSlug, credentials, signal);
-        if (!signal.aborted) onAuthorized(credentials, rsvp);
+        const access = await accessInvitation(eventSlug, credentials, signal);
+        if (!signal.aborted) onAuthorized(credentials, access.rsvp, access.companionLimit);
       } catch (error) {
         if (!signal.aborted) setMessage(error instanceof Error ? error.message : "Não foi possível acessar o convite.");
       } finally { if (!signal.aborted) setPending(false); }
@@ -38,7 +38,8 @@ export function RsvpAccess({ eventSlug, onAuthorized }: {
     event.preventDefault(); setPending(true); setMessage("");
     try {
       const credentials = invitationCredentials(code);
-      onAuthorized(credentials, await accessInvitation(eventSlug, credentials));
+      const access = await accessInvitation(eventSlug, credentials);
+      onAuthorized(credentials, access.rsvp, access.companionLimit);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Não foi possível continuar."); }
     finally { setPending(false); }
   }
@@ -73,5 +74,5 @@ async function accessInvitation(eventSlug: string, credentials: RsvpCredentials,
     const error = apiErrorResponseSchema.safeParse(body);
     throw new Error(error.success ? error.data.error.message : "Não foi possível acessar sua confirmação.");
   }
-  return rsvpResponseSchema.parse(body).rsvp;
+  return rsvpAccessResponseSchema.parse(body);
 }

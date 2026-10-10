@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 
 import { eventSlugSchema } from "@/lib/events/event-validation";
 import { createEventBrandingUrls } from "@/lib/events/event-branding-storage";
@@ -7,7 +8,7 @@ import { isEventActive, type EventSummary } from "@/lib/events/event";
 import { infrastructureError } from "@/lib/errors/application-error";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
-export async function findEventBySlug(
+export const findEventBySlug = cache(async function findEventBySlug(
   untrustedSlug: string,
 ): Promise<EventSummary | null> {
   const slugResult = eventSlugSchema.safeParse(untrustedSlug);
@@ -23,7 +24,7 @@ export async function findEventBySlug(
   const { data, error } = await supabase
     .from("events")
     .select(
-      "id,name,slug,event_date,is_active,primary_color,accent_color,cover_storage_path,logo_storage_path,closing_message,photos_available_until,organizer_contact,location,maps_url,max_companions",
+      "id,name,slug,event_date,is_active,primary_color,accent_color,cover_storage_path,logo_storage_path,closing_message,photos_available_until,organizer_contact,location,maps_url,max_companions,instructions",
     )
     .eq("slug", slugResult.data)
     .maybeSingle();
@@ -51,6 +52,7 @@ export async function findEventBySlug(
 
   return {
     ...colors.data,
+    instructions: data.instructions,
     availabilityUntil: data.photos_available_until,
     closingMessage: data.closing_message,
     coverImageUrl: urls.coverImageUrl,
@@ -65,7 +67,7 @@ export async function findEventBySlug(
     eventDate: data.event_date,
     isActive: data.is_active,
   };
-}
+});
 
 export async function findActiveEventBySlug(
   untrustedSlug: string,

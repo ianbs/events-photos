@@ -3,15 +3,15 @@ const { requireAdmin, createAdminSupabaseClient } = vi.hoisted(() => ({ requireA
 vi.mock("@/lib/auth/admin-authorization", () => ({ requireAdmin }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminSupabaseClient }));
 vi.mock("@/lib/config/server-environment", () => ({ getServerEnvironment: () => ({ NEXT_PUBLIC_APP_URL: "https://events.example.com" }) }));
-import { changeRsvpInvitation, createRsvpInvitation, exportRsvpInvitations, listRsvpInvitations } from "./rsvp-invitation-service";
+import { changeRsvpInvitation, createRsvpInvitation, deleteRsvpGuest, exportRsvpInvitations, listRsvpInvitations } from "./rsvp-invitation-service";
 
 const eventId = "11111111-1111-4111-8111-111111111111";
 const code = "a".repeat(43);
 const guestRow: { guest_id: string; name: string; email: string | null; phone: string | null; invitation_code: string | null; invitation_revoked_at: string | null } = {
   guest_id: eventId, name: "Ana", email: null, phone: "5511999999999", invitation_code: code, invitation_revoked_at: null,
 };
-function setup(rows = [guestRow]) {
-  const eventQuery = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), maybeSingle: vi.fn().mockResolvedValue({ data: { id: eventId, name: "Festa", slug: "event-a", is_active: true }, error: null }) };
+function setup(rows = [guestRow], whatsappMessage: string | null = null) {
+  const eventQuery = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), maybeSingle: vi.fn().mockResolvedValue({ data: { id: eventId, name: "Festa", slug: "event-a", is_active: true, whatsapp_message: whatsappMessage }, error: null }) };
   const query = {
     select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), in: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(),
@@ -33,13 +33,14 @@ describe("guest registration and recoverable invitations", () => {
     await expect(listRsvpInvitations(eventId)).rejects.toThrow("forbidden");
     await expect(changeRsvpInvitation(eventId, { guestId: eventId, action: "retrieve" })).rejects.toThrow("forbidden");
     await expect(exportRsvpInvitations(eventId, { guestIds: [eventId] })).rejects.toThrow("forbidden");
+    await expect(deleteRsvpGuest(eventId, { guestId: eventId })).rejects.toThrow("forbidden");
     expect(createAdminSupabaseClient).not.toHaveBeenCalled();
   });
   it("registers a guest and persists the code for future retrieval", async () => {
     const { rpc } = setup();
     const result = await createRsvpInvitation(eventId, { name: " Ana ", phone: "+55 (11) 99999-9999" });
     expect(result.code).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(rpc).toHaveBeenCalledWith("create_rsvp_guest", { p_event_id: eventId, p_name: "Ana", p_code: result.code, p_phone: "5511999999999", p_email: undefined });
+    expect(rpc).toHaveBeenCalledWith("create_rsvp_guest", { p_event_id: eventId, p_name: "Ana", p_code: result.code, p_phone: "5511999999999", p_email: undefined, p_max_companions: undefined });
     expect(result.whatsappUrl).toContain("https://wa.me/5511999999999");
   });
   it("retrieves the same link repeatedly without overwriting the secret or RSVP", async () => {
@@ -58,7 +59,7 @@ describe("guest registration and recoverable invitations", () => {
   it("changes contact details without replacing the invitation code", async () => {
     const { query } = setup();
     await changeRsvpInvitation(eventId, { guestId: eventId, action: "edit", name: "Ana Maria", phone: "5511888888888" });
-    expect(query.update).toHaveBeenCalledWith({ name: "Ana Maria", phone: "5511888888888", email: null });
+    expect(query.update).toHaveBeenCalledWith({ name: "Ana Maria", phone: "5511888888888", email: null, max_companions: null });
   });
   it("omits recoverable secrets from the default guest listing", async () => {
     const { query } = setup();
@@ -81,5 +82,42 @@ describe("guest registration and recoverable invitations", () => {
   it("rejects duplicate email registration without overwriting the existing guest", async () => {
     const { rpc } = setup(); rpc.mockResolvedValue({ data: null, error: { code: "23505" } });
     await expect(createRsvpInvitation(eventId, { name: "Ana", email: "ana@example.com" })).rejects.toMatchObject({ status: 409 });
+  });
+  it("creates an individual invitation with an explicit zero companion allowance", async () => {
+    const { rpc } = setup();
+    await createRsvpInvitation(eventId, { name: "Ana", maxCompanions: "0" });
+    expect(rpc).toHaveBeenCalledWith("create_rsvp_guest", expect.objectContaining({ p_max_companions: 0 }));
+  });
+  it("edits the companion allowance without changing the invitation code", async () => {
+    const { query } = setup();
+    await changeRsvpInvitation(eventId, { guestId: eventId, action: "edit", name: "Ana", maxCompanions: "3" });
+    expect(query.update).toHaveBeenCalledWith({ name: "Ana", email: null, phone: null, max_companions: 3 });
+  });
+  it.each([-1, 1.5, "abc", true, 2147483648])("rejects invalid individual allowance %s", async (maxCompanions) => {
+    const { rpc } = setup();
+    await expect(createRsvpInvitation(eventId, { name: "Ana", maxCompanions })).rejects.toMatchObject({ status: 400 });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+  it("uses the configured message for recovery and CSV export", async () => {
+    setup([guestRow], "Oi, {nome}!\nParticipe de {evento}: {link}");
+    const invitation = await changeRsvpInvitation(eventId, { guestId: eventId, action: "retrieve" });
+    expect(invitation?.message).toBe(`Oi, Ana!\nParticipe de Festa: ${invitation?.url}`);
+    const csv = await exportRsvpInvitations(eventId, { guestIds: [eventId] });
+    expect(csv).toContain(invitation!.message);
+    expect(csv).toContain(invitation!.whatsappUrl);
+  });
+  it("scopes atomic deletion to both the event and guest", async () => {
+    const { rpc } = setup(); rpc.mockResolvedValue({ data: true, error: null });
+    await deleteRsvpGuest(eventId, { guestId: eventId });
+    expect(rpc).toHaveBeenCalledWith("delete_rsvp_guest", { p_event_id: eventId, p_guest_id: eventId });
+  });
+  it("rejects invalid or missing guests without reporting successful deletion", async () => {
+    const { rpc } = setup();
+    await expect(deleteRsvpGuest(eventId, { guestId: "invalid" })).rejects.toMatchObject({ status: 400 });
+    expect(rpc).not.toHaveBeenCalled();
+    rpc.mockResolvedValue({ data: false, error: null });
+    await expect(deleteRsvpGuest(eventId, { guestId: eventId })).rejects.toMatchObject({ status: 404 });
+    rpc.mockResolvedValue({ data: null, error: { code: "XX000" } });
+    await expect(deleteRsvpGuest(eventId, { guestId: eventId })).rejects.toMatchObject({ status: 503 });
   });
 });

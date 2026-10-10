@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DEFAULT_WHATSAPP_MESSAGE } from "@/lib/events/invitation-message-template";
 
 import {
   DEFAULT_EVENT_CLOSING_MESSAGE,
@@ -8,6 +9,8 @@ import {
 } from "@/lib/events/event-validation";
 
 export type EventFormValues = {
+  instructions: string | null;
+  whatsappMessage: string | null;
   location: string | null;
   mapsUrl: string | null;
   maxCompanions: number | null;
@@ -127,12 +130,31 @@ export function EventFormFields({
       </label>
 
       <label className="block">
-        <span className="text-sm font-medium text-slate-700">Número máximo de acompanhantes por convidado</span>
+        <span className="text-sm font-medium text-slate-700">Limite padrão de acompanhantes por convidado</span>
         <input name="maxCompanions" type="number" min={0} max={2147483647} step={1}
           defaultValue={defaultValues?.maxCompanions ?? ""} placeholder="Ex.: 2"
           className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" />
-        <span className="mt-2 block text-xs text-slate-500">Sem contar o próprio convidado. Informe 0 para não permitir acompanhantes. Deixe vazio para usar o limite padrão de 10.</span>
+        <span className="mt-2 block text-xs text-slate-500">Sem contar o próprio convidado. Informe 0 para convites individuais. Deixe vazio para usar 10. Você pode substituir este padrão no cadastro de cada convidado.</span>
       </label>
+
+      <fieldset className="space-y-5 rounded-2xl border border-slate-200 p-4 sm:p-5">
+        <legend className="px-2 text-sm font-semibold text-slate-800">Convite e save the date</legend>
+        <label className="block">
+          <span className="text-sm font-medium text-slate-700">Orientações sobre o evento</span>
+          <textarea name="instructions" rows={5} maxLength={5000}
+            defaultValue={defaultValues?.instructions ?? ""}
+            placeholder="Ex.: traje, horário de chegada, estacionamento e outras informações para os convidados."
+            className="mt-2 w-full resize-y rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" />
+          <span className="mt-2 block text-xs text-slate-500">Opcional. Estas orientações aparecerão no convite/save the date.</span>
+        </label>
+        <label className="block">
+          <span className="text-sm font-medium text-slate-700">Mensagem do WhatsApp</span>
+          <textarea name="whatsappMessage" rows={5} maxLength={3000}
+            defaultValue={defaultValues?.whatsappMessage ?? DEFAULT_WHATSAPP_MESSAGE}
+            className="mt-2 w-full resize-y rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" />
+          <span className="mt-2 block text-xs text-slate-500">Use {"{nome}"} para o convidado, {"{evento}"} para o evento e {"{link}"} para o convite individual. Sem {"{link}"}, ele será incluído ao final. Deixe vazio para usar a mensagem padrão.</span>
+        </label>
+      </fieldset>
 
       <label className="flex items-start gap-3 rounded-xl bg-slate-50 p-4">
         <input

@@ -7,19 +7,18 @@ import { infrastructureError, validationError } from "@/lib/errors/application-e
 import { rsvpInputSchema } from "@/lib/events/rsvp-contract";
 import { eventIdSchema } from "@/lib/events/event-validation";
 import { resolveRsvpIdentity } from "@/lib/events/rsvp-identity-service";
-import { getRsvpCompanionLimit } from "@/lib/events/rsvp-companions";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 export async function readGuestRsvp(slug: string, credentials: unknown) {
   const guest = await resolveRsvpIdentity(slug, credentials);
   const { data, error } = await createAdminSupabaseClient()
     .from("event_rsvps")
-    .select("name,attending,companions")
+    .select("name,attending,companions,companion_names")
     .eq("event_id", guest.eventId)
     .eq("guest_id", guest.guestId)
     .maybeSingle();
   if (error) throw infrastructureError();
-  return data;
+  return { rsvp: data, companionLimit: guest.companionLimit };
 }
 
 export async function saveGuestRsvp(slug: string, untrustedInput: unknown) {
@@ -28,13 +27,10 @@ export async function saveGuestRsvp(slug: string, untrustedInput: unknown) {
   const input = result.data;
   const guest = await resolveRsvpIdentity(slug, input.credentials);
   const supabase = createAdminSupabaseClient();
-  const { data: event, error: eventError } = await supabase.from("events")
-    .select("max_companions").eq("id", guest.eventId).maybeSingle();
-  if (eventError || !event) throw infrastructureError();
-  const companionLimit = getRsvpCompanionLimit(event.max_companions);
+  const companionLimit = guest.companionLimit;
   if (input.companions > companionLimit) {
-    throw validationError(companionLimit === 0 ? "Este evento não permite acompanhantes."
-      : `Este evento permite no máximo ${companionLimit} acompanhante(s) por convidado.`);
+    throw validationError(companionLimit === 0 ? "Seu convite não permite acompanhantes."
+      : `Seu convite permite no máximo ${companionLimit} acompanhante(s).`);
   }
   const { data, error } = await supabase
     .from("event_rsvps")
@@ -44,9 +40,10 @@ export async function saveGuestRsvp(slug: string, untrustedInput: unknown) {
       name: input.name,
       attending: input.attending,
       companions: input.companions,
+      companion_names: input.companionNames,
       updated_at: new Date().toISOString(),
     }, { onConflict: "event_id,guest_id" })
-    .select("name,attending,companions")
+    .select("name,attending,companions,companion_names")
     .single();
   if (error?.code === "23514") throw validationError("Revise a quantidade de acompanhantes permitida para este evento.");
   if (error || !data) throw infrastructureError();
@@ -60,7 +57,7 @@ export async function listAdminRsvps(eventId: string, page: number) {
   const pageSize = 50;
   const { data, error, count } = await createAdminSupabaseClient()
     .from("event_rsvps")
-    .select("guest_id,name,attending,companions,updated_at", { count: "exact" })
+    .select("guest_id,name,attending,companions,companion_names,updated_at", { count: "exact" })
     .eq("event_id", eventId)
     .order("updated_at", { ascending: false })
     .order("guest_id")

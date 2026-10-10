@@ -31,6 +31,8 @@ export type Database = {
       }
       events: {
         Row: {
+          instructions: string | null
+          whatsapp_message: string | null
           accent_color: string
           closing_message: string
           cover_storage_path: string | null
@@ -50,6 +52,8 @@ export type Database = {
         }
         Insert: {
           accent_color?: string
+          instructions?: string | null
+          whatsapp_message?: string | null
           closing_message?: string
           cover_storage_path?: string | null
           created_at?: string
@@ -68,6 +72,8 @@ export type Database = {
         }
         Update: {
           accent_color?: string
+          instructions?: string | null
+          whatsapp_message?: string | null
           closing_message?: string
           cover_storage_path?: string | null
           created_at?: string
@@ -88,6 +94,7 @@ export type Database = {
       }
       event_rsvp_identities: {
         Row: {
+          max_companions: number | null
           phone: string | null
           invitation_code: string | null
           event_id: string
@@ -100,6 +107,7 @@ export type Database = {
         }
         Insert: {
           phone?: string | null
+          max_companions?: number | null
           invitation_code?: string | null
           event_id: string
           guest_id: string
@@ -111,6 +119,7 @@ export type Database = {
         }
         Update: {
           phone?: string | null
+          max_companions?: number | null
           invitation_code?: string | null
           event_id?: string
           guest_id?: string
@@ -124,6 +133,7 @@ export type Database = {
       }
       event_rsvps: {
         Row: {
+          companion_names: string[]
           event_id: string
           guest_id: string
           name: string
@@ -136,6 +146,7 @@ export type Database = {
           guest_id: string
           name: string
           attending: boolean
+          companion_names?: string[]
           companions?: number
           updated_at?: string
         }
@@ -144,6 +155,7 @@ export type Database = {
           guest_id?: string
           name?: string
           attending?: boolean
+          companion_names?: string[]
           companions?: number
           updated_at?: string
         }
@@ -259,8 +271,12 @@ export type Database = {
       }
     }
     Functions: {
+      delete_rsvp_guest: {
+        Args: { p_event_id: string; p_guest_id: string }
+        Returns: boolean
+      }
       create_rsvp_guest: {
-        Args: { p_event_id: string; p_name: string; p_code: string; p_email?: string; p_phone?: string }
+        Args: { p_event_id: string; p_name: string; p_code: string; p_email?: string; p_phone?: string; p_max_companions?: number }
         Returns: string
       }
       ensure_rsvp_identity: {

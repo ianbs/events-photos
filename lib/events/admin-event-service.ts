@@ -17,9 +17,11 @@ import { eventBrandingColorsSchema } from "@/lib/events/event-branding-policy";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 const eventColumns =
-  "id,name,slug,event_date,is_active,closing_message,photos_available_until,organizer_contact,location,maps_url,max_companions" as const;
+  "id,name,slug,event_date,is_active,closing_message,photos_available_until,organizer_contact,location,maps_url,max_companions,instructions,whatsapp_message" as const;
 
 export type AdminEvent = {
+  instructions: string | null;
+  whatsappMessage: string | null;
   location: string | null;
   mapsUrl: string | null;
   maxCompanions: number | null;
@@ -48,6 +50,8 @@ export type AdminEventSummary = AdminEvent & {
 };
 
 type StoredAdminEvent = {
+  instructions: string | null;
+  whatsapp_message: string | null;
   location: string | null;
   maps_url: string | null;
   max_companions: number | null;
@@ -63,6 +67,8 @@ type StoredAdminEvent = {
 
 function mapAdminEvent(event: StoredAdminEvent): AdminEvent {
   return {
+    instructions: event.instructions,
+    whatsappMessage: event.whatsapp_message,
     availabilityUntil: event.photos_available_until,
     closingMessage: event.closing_message,
     eventDate: event.event_date,
@@ -99,6 +105,8 @@ function validateEventInput(untrustedInput: unknown): EventInput {
 
 function toStoredEventInput(input: EventInput) {
   return {
+    instructions: input.instructions,
+    whatsapp_message: input.whatsappMessage,
     closing_message: input.closingMessage,
     event_date: input.eventDate,
     is_active: input.isActive,

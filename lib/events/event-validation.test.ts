@@ -8,6 +8,17 @@ import {
 describe("event input validation", () => {
   const validEvent = { eventDate: "2026-08-16", isActive: true, name: "Evento", slug: "evento" };
 
+  it("normalizes optional invitation fields and preserves paragraphs", () => {
+    expect(createEventSchema.parse({ ...validEvent, instructions: "  Traje social.\nChegue às 18h.  ", whatsappMessage: "  Olá, {nome}! {link}  " }))
+      .toMatchObject({ instructions: "Traje social.\nChegue às 18h.", whatsappMessage: "Olá, {nome}! {link}" });
+    expect(createEventSchema.parse({ ...validEvent, instructions: " ", whatsappMessage: " " }))
+      .toMatchObject({ instructions: null, whatsappMessage: null });
+  });
+  it("rejects oversized invitation fields", () => {
+    expect(createEventSchema.safeParse({ ...validEvent, instructions: "a".repeat(5001) }).success).toBe(false);
+    expect(createEventSchema.safeParse({ ...validEvent, whatsappMessage: "a".repeat(3001) }).success).toBe(false);
+  });
+
   it("normalizes location and optional capacity", () => {
     expect(createEventSchema.parse({ ...validEvent, location: "  Salão  ", mapsUrl: " ", maxCompanions: "150" }))
       .toMatchObject({ location: "Salão", mapsUrl: null, maxCompanions: 150 });

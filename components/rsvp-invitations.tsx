@@ -4,17 +4,20 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { apiErrorResponseSchema } from "@/lib/photos/upload-contract";
+import { createWhatsAppUrl } from "@/lib/events/invitation-distribution";
+import { getRsvpCompanionLimit } from "@/lib/events/rsvp-companions";
 
 type Guest = {
   guest_id: string; name: string; email: string | null; phone: string | null;
   invitation_revoked_at: string | null; hasRecoverableLink: boolean;
-  response: { attending: boolean; companions: number } | null;
+  max_companions: number | null;
+  response: { attending: boolean; companions: number; companion_names: string[] } | null;
 };
-const responseSchema = z.object({ invitation: z.object({ code: z.string(), url: z.url(), whatsappUrl: z.url().nullable() }).nullable() });
+const responseSchema = z.object({ invitation: z.object({ code: z.string(), url: z.url(), message: z.string(), phone: z.string().nullable(), whatsappUrl: z.url().nullable() }).nullable() });
 type GeneratedInvitation = z.infer<typeof responseSchema>["invitation"];
 
-export function RsvpInvitations({ eventId, invitations, total, page }: {
-  eventId: string; invitations: Guest[]; total: number; page: number;
+export function RsvpInvitations({ eventId, invitations, total, page, eventMaxCompanions }: {
+  eventId: string; invitations: Guest[]; total: number; page: number; eventMaxCompanions: number | null;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -22,9 +25,10 @@ export function RsvpInvitations({ eventId, invitations, total, page }: {
   const [generated, setGenerated] = useState<GeneratedInvitation>(null);
   const [editing, setEditing] = useState<Guest | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState<Guest | null>(null);
   const exportable = invitations.filter((guest) => guest.phone && guest.hasRecoverableLink && !guest.invitation_revoked_at);
 
-  async function request(method: "POST" | "PATCH", input: unknown) {
+  async function request(method: "POST" | "PATCH" | "DELETE", input: unknown) {
     setPending(true); setMessage(""); setGenerated(null);
     try {
       const response = await fetch(`/api/admin/events/${eventId}/invitations`, {
@@ -34,8 +38,14 @@ export function RsvpInvitations({ eventId, invitations, total, page }: {
       if (!response.ok) throw responseError(body);
       setGenerated(responseSchema.parse(body).invitation);
       const retrieving = typeof input === "object" && input !== null && "action" in input && input.action === "retrieve";
-      setMessage(method === "POST" ? "Convidado cadastrado. O link está salvo e pode ser recuperado depois." : retrieving ? "Link e código recuperados." : "Convite atualizado.");
-      setEditing(null); setSelected([]); router.refresh();
+      setMessage(method === "DELETE" ? "Convidado excluído. Seu convite e sua resposta de presença foram removidos." : method === "POST" ? "Convidado cadastrado. O link está salvo e pode ser recuperado depois." : retrieving ? "Link e código recuperados." : "Convite atualizado.");
+      setEditing(null); setDeleting(null); setSelected([]);
+      if (method === "DELETE" && invitations.length === 1 && page > 1) {
+        const params = new URLSearchParams(window.location.search);
+        params.set("invitationPage", String(page - 1));
+        router.replace(`?${params.toString()}`);
+      }
+      router.refresh();
       return true;
     } catch (error) { setMessage(error instanceof Error ? error.message : "Não foi possível atualizar o convidado."); return false; }
     finally { setPending(false); }
@@ -47,6 +57,7 @@ export function RsvpInvitations({ eventId, invitations, total, page }: {
     const data = new FormData(form);
     const saved = await request(editing ? "PATCH" : "POST", {
       name: data.get("name"), email: data.get("email"), phone: data.get("phone"),
+      maxCompanions: data.get("maxCompanions"),
       ...(editing ? { action: "edit", guestId: editing.guest_id } : {}),
     });
     if (saved && !editing) form.reset();
@@ -79,6 +90,12 @@ export function RsvpInvitations({ eventId, invitations, total, page }: {
         <span className="mt-1 block text-xs text-slate-500">Inclua país e DDD.</span></label>
       <label className="text-sm">E-mail de contato (opcional)<input name="email" type="email" maxLength={254} disabled={pending} defaultValue={editing?.email ?? ""}
         className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" /></label>
+      <label className="text-sm sm:col-span-3">Máximo de acompanhantes deste convidado
+        <input name="maxCompanions" type="number" min={0} max={2147483647} step={1} disabled={pending}
+          defaultValue={editing?.max_companions ?? ""} placeholder={`Padrão do evento: ${getRsvpCompanionLimit(eventMaxCompanions)}`}
+          className="mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 sm:max-w-xs" />
+        <span className="mt-1 block text-xs text-slate-500">Sem contar o próprio convidado. Deixe vazio para usar o padrão do evento ou informe 0 para um convite individual. O limite individual substitui o padrão.</span>
+      </label>
       <div className="flex gap-3 sm:col-span-3">
         <button disabled={pending} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm text-white disabled:opacity-60">{editing ? "Salvar convidado" : "Cadastrar convidado"}</button>
         {editing ? <button type="button" disabled={pending} onClick={() => setEditing(null)} className="text-sm text-slate-600 underline">Cancelar edição</button> : null}
@@ -90,9 +107,22 @@ export function RsvpInvitations({ eventId, invitations, total, page }: {
         className="mt-1 w-full rounded-lg border border-emerald-200 bg-white p-2" /></label>
       <label className="block">Código<input readOnly value={generated.code} onFocus={(e) => e.target.select()}
         className="mt-1 w-full rounded-lg border border-emerald-200 bg-white p-2" /></label>
+      <label className="block">Mensagem para este convidado<textarea rows={5} maxLength={6000} value={generated.message}
+        onChange={(e) => setGenerated({ ...generated, message: e.target.value })}
+        className="mt-1 w-full resize-y rounded-lg border border-emerald-200 bg-white p-2" /></label>
+      <p className="text-xs text-slate-600">Você pode ajustar esta mensagem antes de abrir o WhatsApp. Esta edição vale apenas para este envio; o link individual será incluído se necessário.</p>
       <div className="flex flex-wrap gap-4">
         <button type="button" onClick={() => { void navigator.clipboard.writeText(generated.url).then(() => setMessage("Link copiado."), () => setMessage("Selecione e copie o link acima.")); }} className="font-medium text-emerald-800 underline">Copiar link</button>
-        {generated.whatsappUrl ? <a href={generated.whatsappUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-emerald-800 underline">Abrir mensagem no WhatsApp</a> : null}
+        {generated.phone ? <a href={createWhatsAppUrl(generated.phone, generated.message.includes(generated.url) ? generated.message : `${generated.message}\n\n${generated.url}`)!} target="_blank" rel="noopener noreferrer" className="font-medium text-emerald-800 underline">Abrir mensagem no WhatsApp</a> : null}
+      </div>
+    </div> : null}
+    {deleting ? <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm">
+      <p className="font-semibold text-red-800">Excluir {deleting.name}?</p>
+      <p className="mt-2 text-red-700">O cadastro, o convite e a resposta de presença serão removidos. O link deixará de funcionar. As fotos já enviadas serão preservadas.</p>
+      <div className="mt-3 flex gap-4">
+        <button type="button" disabled={pending} onClick={() => void request("DELETE", { guestId: deleting.guest_id })}
+          className="rounded-lg bg-red-700 px-3 py-2 text-white disabled:opacity-60">Confirmar exclusão</button>
+        <button type="button" disabled={pending} onClick={() => setDeleting(null)} className="text-slate-700 underline">Cancelar</button>
       </div>
     </div> : null}
     <div className="mt-6 flex flex-wrap items-center gap-4">
@@ -107,7 +137,7 @@ export function RsvpInvitations({ eventId, invitations, total, page }: {
           <th scope="col" className="p-3"><input type="checkbox" aria-label="Selecionar convidados com WhatsApp e convite ativo nesta página" disabled={pending || !exportable.length}
             checked={exportable.length > 0 && exportable.every((guest) => selected.includes(guest.guest_id))}
             onChange={(e) => setSelected(e.target.checked ? exportable.map((guest) => guest.guest_id) : [])} /></th>
-          <th scope="col" className="p-3">Convidado</th><th scope="col" className="p-3">Contato</th><th scope="col" className="p-3">Presença</th><th scope="col" className="p-3">Convite</th><th scope="col" className="p-3">Ações</th>
+          <th scope="col" className="p-3">Convidado</th><th scope="col" className="p-3">Contato</th><th scope="col" className="p-3">Limite de acompanhantes</th><th scope="col" className="p-3">Presença</th><th scope="col" className="p-3">Convite</th><th scope="col" className="p-3">Ações</th>
         </tr></thead>
         <tbody>{invitations.map((guest) => <tr key={guest.guest_id} className="border-t border-slate-100">
           <td className="p-3"><input type="checkbox" aria-label={`Selecionar ${guest.name}`} checked={selected.includes(guest.guest_id)}
@@ -115,13 +145,17 @@ export function RsvpInvitations({ eventId, invitations, total, page }: {
             onChange={(e) => setSelected(e.target.checked ? [...selected, guest.guest_id] : selected.filter((id) => id !== guest.guest_id))} /></td>
           <td className="p-3 font-medium">{guest.name || "Convidado sem nome"}</td>
           <td className="p-3"><p>{guest.phone ?? "Sem WhatsApp"}</p><p className="text-xs text-slate-500">{guest.email}</p></td>
-          <td className="p-3">{guest.response ? guest.response.attending ? `Confirmada · ${guest.response.companions} acompanhante(s)` : "Não comparecerá" : "Pendente"}</td>
+          <td className="p-3">{getRsvpCompanionLimit(eventMaxCompanions, guest.max_companions)}
+            <p className="text-xs text-slate-500">{guest.max_companions === null ? "Padrão do evento" : "Individual"}</p></td>
+          <td className="p-3">{guest.response ? guest.response.attending ? `Confirmada · ${guest.response.companions} acompanhante(s)` : "Não comparecerá" : "Pendente"}
+            {guest.response?.companion_names.length ? <p className="mt-1 whitespace-pre-line text-xs text-slate-500">{guest.response.companion_names.join("\n")}</p> : null}</td>
           <td className="p-3">{guest.invitation_revoked_at ? "Revogado" : guest.hasRecoverableLink ? "Ativo" : "Precisa gerar código"}</td>
           <td className="p-3"><div className="flex min-w-40 flex-wrap gap-x-3 gap-y-2">
             <button disabled={pending} onClick={() => { setEditing(guest); setGenerated(null); }} className="text-slate-700 underline">Editar</button>
             {guest.hasRecoverableLink && !guest.invitation_revoked_at ? <button disabled={pending} onClick={() => void request("PATCH", { guestId: guest.guest_id, action: "retrieve" })} className="text-emerald-700 underline">Ver link e código</button> : null}
             <button disabled={pending} onClick={() => void request("PATCH", { guestId: guest.guest_id, action: "renew" })} className="text-emerald-700 underline">{guest.hasRecoverableLink ? "Substituir código" : "Gerar código"}</button>
             {!guest.invitation_revoked_at ? <button disabled={pending} onClick={() => void request("PATCH", { guestId: guest.guest_id, action: "revoke" })} className="text-red-700 underline">Revogar</button> : null}
+            <button type="button" disabled={pending} onClick={() => { setDeleting(guest); setGenerated(null); }} className="text-red-700 underline">Excluir convidado</button>
           </div></td>
         </tr>)}</tbody>
       </table>
