@@ -92,6 +92,14 @@ export type Database = {
         }
         Relationships: []
       }
+      event_rsvp_guest_batches: {
+        Row: { event_id: string; batch_id: string; input_hash: string; saved_count: number; created_at: string }
+        Insert: { event_id: string; batch_id: string; input_hash: string; saved_count: number; created_at?: string }
+        Update: { event_id?: string; batch_id?: string; input_hash?: string; saved_count?: number; created_at?: string }
+        Relationships: [
+          { foreignKeyName: "event_rsvp_guest_batches_event_id_fkey"; columns: ["event_id"]; isOneToOne: false; referencedRelation: "events"; referencedColumns: ["id"] },
+        ]
+      }
       event_rsvp_identities: {
         Row: {
           max_companions: number | null
@@ -274,6 +282,10 @@ export type Database = {
       delete_rsvp_guest: {
         Args: { p_event_id: string; p_guest_id: string }
         Returns: boolean
+      }
+      create_rsvp_guest_batch: {
+        Args: { p_event_id: string; p_batch_id: string; p_input_hash: string; p_guests: Json }
+        Returns: number
       }
       create_rsvp_guest: {
         Args: { p_event_id: string; p_name: string; p_code: string; p_email?: string; p_phone?: string; p_max_companions?: number }

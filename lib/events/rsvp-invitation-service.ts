@@ -1,13 +1,13 @@
 import "server-only";
 
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth/admin-authorization";
 import { getServerEnvironment } from "@/lib/config/server-environment";
 import { conflictError, infrastructureError, notFoundError, validationError } from "@/lib/errors/application-error";
 import { eventIdSchema } from "@/lib/events/event-validation";
 import { hashInvitationCode } from "@/lib/events/rsvp-identity-service";
-import { invitationExportSchema, rsvpGuestInputSchema } from "@/lib/events/rsvp-guest-contract";
+import { invitationExportSchema, rsvpGuestInputSchema, rsvpGuestBatchSchema } from "@/lib/events/rsvp-guest-contract";
 import { createInvitationCsv, createInvitationMessage, createWhatsAppUrl } from "@/lib/events/invitation-distribution";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
@@ -45,6 +45,27 @@ export async function createRsvpInvitation(eventId: string, input: unknown) {
   });
   writeError(error);
   return invitationResult(event, code, result.data);
+}
+
+export async function createRsvpInvitationBatch(eventId: string, input: unknown) {
+  const event = await adminEvent(eventId);
+  const result = rsvpGuestBatchSchema.safeParse(input);
+  if (!result.success) {
+    const index = result.error.issues[0]?.path[1];
+    throw validationError(typeof index === "number"
+      ? `Revise os dados do convidado ${index + 1}. Confira também e-mails repetidos na lista.`
+      : "Informe de 1 a 100 convidados válidos.");
+  }
+  const { guests, batchId } = result.data;
+  const inputHash = createHash("sha256").update(JSON.stringify(guests)).digest("hex");
+  const { data, error } = await createAdminSupabaseClient().rpc("create_rsvp_guest_batch", {
+    p_event_id: event.id, p_batch_id: batchId, p_input_hash: inputHash,
+    p_guests: guests.map((guest) => ({ ...guest, code: randomBytes(32).toString("base64url") })),
+  });
+  if (error?.code === "22023") throw validationError("A lista foi alterada após uma tentativa de salvamento. Recarregue e confira os convidados cadastrados.");
+  if (error?.code === "23505") throw conflictError("Já existe um convidado com um dos e-mails informados. Nenhum convidado desta lista foi salvo; revise os e-mails.");
+  if (error || data !== guests.length) throw infrastructureError();
+  return { savedCount: data };
 }
 
 export async function listRsvpInvitations(eventId: string, page = 1) {
