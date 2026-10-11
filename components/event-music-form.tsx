@@ -56,7 +56,7 @@ export function EventMusicForm({ eventId, initialMusicUrl, hasMusic }: {
   return (
     <section className="mt-6 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-8">
       <h2 className="text-xl font-semibold">Música de fundo</h2>
-      <p className="mt-2 text-sm text-slate-600">Escolha uma música para o convite, save the date e galeria. Os convidados podem iniciar, pausar e ajustar a reprodução.</p>
+      <p className="mt-2 text-sm text-slate-600">Escolha uma música para tocar automaticamente no convite, save the date e galeria. Os convidados podem pausar e ajustar a reprodução.</p>
       <form onSubmit={submit} className="mt-5 space-y-4">
         <div>
           <label htmlFor="event-music-file" className="block text-sm font-medium">Arquivo de música (MP3)</label>
@@ -73,7 +73,7 @@ export function EventMusicForm({ eventId, initialMusicUrl, hasMusic }: {
               selectFile(selected);
               if (selected) setRemoveMusic(false);
             }} />
-          <p id="event-music-help" className="mt-2 text-xs text-slate-500">Até 15 MB. O som começa quando o convidado toca em reproduzir.</p>
+          <p id="event-music-help" className="mt-2 text-xs text-slate-500">Até 15 MB. Se o navegador bloquear o início automático, a música começa ao tocar na página ou em reproduzir.</p>
         </div>
         {source ? <audio key={source} src={source} controls preload="none" aria-label="Prévia da música do evento" className="w-full" /> : null}
         {hasMusic ? <label className="flex items-center gap-2 text-sm">
