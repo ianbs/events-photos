@@ -13,6 +13,7 @@ import {
   type EventInput,
 } from "@/lib/events/event-validation";
 import { createEventBrandingUrls } from "@/lib/events/event-branding-storage";
+import { createEventMusicUrl } from "@/lib/events/event-music-storage";
 import { eventBrandingColorsSchema } from "@/lib/events/event-branding-policy";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
@@ -36,6 +37,8 @@ export type AdminEvent = {
 };
 
 export type EditableAdminEvent = AdminEvent & {
+  musicUrl: string | null;
+  hasMusic: boolean;
   accentColor: string;
   coverImageUrl: string | null;
   logoImageUrl: string | null;
@@ -161,7 +164,7 @@ export async function findAdminEventById(
   const { data, error } = await supabase
     .from("events")
     .select(
-      `${eventColumns},primary_color,accent_color,cover_storage_path,logo_storage_path`,
+      `${eventColumns},primary_color,accent_color,cover_storage_path,logo_storage_path,music_storage_path`,
     )
     .eq("id", eventId)
     .maybeSingle();
@@ -189,6 +192,8 @@ export async function findAdminEventById(
 
   return {
     ...mapAdminEvent(data),
+    musicUrl: await createEventMusicUrl(data.music_storage_path),
+    hasMusic: Boolean(data.music_storage_path),
     ...colors.data,
     ...urls,
   };

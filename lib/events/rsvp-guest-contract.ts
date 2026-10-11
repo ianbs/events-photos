@@ -20,6 +20,13 @@ export const invitationExportSchema = z.object({
   guestIds: z.array(z.string().uuid()).min(1).max(500),
 });
 
+export const whatsappInvitationsResponseSchema = z.object({
+  invitations: z.array(z.object({
+    guestId: z.string().uuid(), name: z.string(), phone: z.string(),
+    url: z.url(), message: z.string(),
+  })).min(1).max(500),
+});
+
 export const MAX_RSVP_GUEST_BATCH = 100;
 export const rsvpGuestBatchSchema = z.object({
   batchId: z.string().uuid(),

@@ -31,6 +31,7 @@ export type Database = {
       }
       events: {
         Row: {
+          music_storage_path: string | null
           instructions: string | null
           whatsapp_message: string | null
           accent_color: string
@@ -51,6 +52,7 @@ export type Database = {
           slug: string
         }
         Insert: {
+          music_storage_path?: string | null
           accent_color?: string
           instructions?: string | null
           whatsapp_message?: string | null
@@ -71,6 +73,7 @@ export type Database = {
           slug: string
         }
         Update: {
+          music_storage_path?: string | null
           accent_color?: string
           instructions?: string | null
           whatsapp_message?: string | null

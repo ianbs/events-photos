@@ -65,3 +65,21 @@ export async function listAdminRsvps(eventId: string, page: number) {
   if (error) throw infrastructureError();
   return { responses: data ?? [], total: count ?? 0, pageSize };
 }
+
+export async function readAdminRsvpSummary(eventId: string) {
+  await requireAdmin();
+  if (!eventIdSchema.safeParse(eventId).success) throw validationError("Evento inválido.");
+  const supabase = createAdminSupabaseClient();
+  const [pending, confirmed, declined] = await Promise.all([
+    supabase.from("guests")
+      .select("id,event_rsvp_identities!inner(guest_id),event_rsvps()", { count: "exact", head: true })
+      .eq("event_id", eventId).is("event_rsvps", null),
+    supabase.from("event_rsvps").select("guest_id", { count: "exact", head: true }).eq("event_id", eventId).eq("attending", true),
+    supabase.from("event_rsvps").select("guest_id", { count: "exact", head: true }).eq("event_id", eventId).eq("attending", false),
+  ]);
+  if ([pending, confirmed, declined].some((result) => result.error || result.count === null)) throw infrastructureError();
+  return {
+    total: pending.count! + confirmed.count! + declined.count!,
+    confirmed: confirmed.count!, declined: declined.count!, pending: pending.count!,
+  };
+}

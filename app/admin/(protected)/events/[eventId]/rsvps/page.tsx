@@ -2,7 +2,7 @@ import Link from "next/link";
 import { z } from "zod";
 
 import { findAdminEventById } from "@/lib/events/admin-event-service";
-import { listAdminRsvps } from "@/lib/events/rsvp-service";
+import { listAdminRsvps, readAdminRsvpSummary } from "@/lib/events/rsvp-service";
 import { listRsvpInvitations } from "@/lib/events/rsvp-invitation-service";
 import { RsvpInvitations } from "@/components/rsvp-invitations";
 
@@ -15,10 +15,11 @@ export default async function AdminRsvpsPage({ params, searchParams }: {
   const pageResult = z.coerce.number().int().min(1).max(100000).safeParse(query.page ?? 1);
   const page = pageResult.success ? pageResult.data : 1;
   const event = await findAdminEventById(eventId);
-  const { responses, total, pageSize } = await listAdminRsvps(event.id, page);
   const invitationPageResult = z.coerce.number().int().min(1).max(100000).safeParse(query.invitationPage ?? 1);
   const invitationPage = invitationPageResult.success ? invitationPageResult.data : 1;
-  const invitationList = await listRsvpInvitations(event.id, invitationPage);
+  const [{ responses, total, pageSize }, invitationList, summary] = await Promise.all([
+    listAdminRsvps(event.id, page), listRsvpInvitations(event.id, invitationPage), readAdminRsvpSummary(event.id),
+  ]);
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
@@ -26,6 +27,23 @@ export default async function AdminRsvpsPage({ params, searchParams }: {
       <p className="mt-6 text-sm font-medium uppercase tracking-[0.16em] text-emerald-700">Confirmações de presença</p>
       <h1 className="mt-1 text-3xl font-semibold">{event.name}</h1>
       <p className="mt-3 text-slate-600">{total} resposta(s) recebida(s)</p>
+      <section aria-label="Resumo de presença do evento" className="mt-5">
+        <dl className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl bg-emerald-50 p-5 ring-1 ring-emerald-200">
+            <dt className="text-sm font-medium text-emerald-800">Confirmados</dt>
+            <dd className="mt-2 text-3xl font-semibold text-emerald-900">{summary.confirmed}</dd>
+          </div>
+          <div className="rounded-2xl bg-amber-50 p-5 ring-1 ring-amber-200">
+            <dt className="text-sm font-medium text-amber-800">Pendentes</dt>
+            <dd className="mt-2 text-3xl font-semibold text-amber-900">{summary.pending}</dd>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-200">
+            <dt className="text-sm font-medium text-slate-700">Não poderão ir</dt>
+            <dd className="mt-2 text-3xl font-semibold text-slate-900">{summary.declined}</dd>
+          </div>
+        </dl>
+        <p className="mt-3 text-xs text-slate-500">{summary.total} convidado(s) no evento inteiro. Os totais incluem todas as respostas e os convidados ainda sem resposta, sem contar acompanhantes.</p>
+      </section>
       <p className="mt-2 text-sm text-slate-600">Limite padrão: {event.maxCompanions ?? 10} acompanhante(s). Você pode definir um limite individual no cadastro de cada convidado.</p>
       <Link href={`/e/${event.slug}/save-the-date`} target="_blank" rel="noreferrer"
         className="mt-3 inline-block text-sm text-emerald-700 underline">Abrir save the date para compartilhar</Link>

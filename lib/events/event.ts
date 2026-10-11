@@ -1,4 +1,5 @@
 export type EventSummary = {
+  musicUrl: string | null;
   instructions: string | null;
   location: string | null;
   mapsUrl: string | null;

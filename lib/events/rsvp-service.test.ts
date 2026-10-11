@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createClient } from "@supabase/supabase-js";
 
 const { requireAdmin, resolveRsvpIdentity, createAdminSupabaseClient } = vi.hoisted(() => ({
   requireAdmin: vi.fn(), resolveRsvpIdentity: vi.fn(), createAdminSupabaseClient: vi.fn(),
@@ -7,7 +8,7 @@ vi.mock("@/lib/auth/admin-authorization", () => ({ requireAdmin }));
 vi.mock("@/lib/events/rsvp-identity-service", () => ({ resolveRsvpIdentity }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminSupabaseClient }));
 
-import { listAdminRsvps, readGuestRsvp, saveGuestRsvp } from "./rsvp-service";
+import { listAdminRsvps, readAdminRsvpSummary, readGuestRsvp, saveGuestRsvp } from "./rsvp-service";
 
 const guest = { eventId: "event-a", guestId: "guest-a" };
 const credentials = { method: "invitation", invitationCode: "a".repeat(43) };
@@ -152,5 +153,58 @@ describe("event RSVP server boundary", () => {
     const query = client({ data: { name: "Ana", attending: false, companions: 0, companion_names: [] }, error: null });
     await saveGuestRsvp("event-a", { ...input, attending: false, companions: 0, companionNames: [] });
     expect(query.upsert).toHaveBeenCalledWith(expect.objectContaining({ attending: false, companions: 0, companion_names: [] }), { onConflict: "event_id,guest_id" });
+  });
+});
+
+describe("event-wide RSVP summary", () => {
+  const eventId = "11111111-1111-4111-8111-111111111111";
+  beforeEach(() => { vi.clearAllMocks(); requireAdmin.mockResolvedValue({ userId: "admin" }); });
+
+  function setupCounts(counts: { pending: number; confirmed: number; declined: number }, fail = false) {
+    const fetchQuery = vi.fn(async (input: RequestInfo | URL, options?: RequestInit) => {
+      const url = new URL(String(input));
+      expect(options?.method).toBe("HEAD");
+      expect(new Headers(options?.headers).get("Prefer")).toContain("count=exact");
+      expect(url.searchParams.get("event_id")).toBe(`eq.${eventId}`);
+      expect(url.searchParams.has("limit")).toBe(false);
+      expect(url.searchParams.has("offset")).toBe(false);
+      if (url.pathname.endsWith("guests")) {
+        expect(url.searchParams.get("select")).toBe("id,event_rsvp_identities!inner(guest_id),event_rsvps()");
+        expect(url.searchParams.get("event_rsvps")).toBe("is.null");
+      }
+      const count = url.pathname.endsWith("guests") ? counts.pending
+        : url.searchParams.get("attending") === "eq.true" ? counts.confirmed : counts.declined;
+      return new Response(null, { status: fail ? 500 : 200, headers: fail ? {} : { "content-range": `*/${count}` } });
+    });
+    createAdminSupabaseClient.mockReturnValue(createClient("https://summary.example.com", "test-key", {
+      auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: fetchQuery },
+    }));
+    return fetchQuery;
+  }
+
+  it("counts the entire event even beyond page and API row limits", async () => {
+    const query = setupCounts({ pending: 600, confirmed: 1600, declined: 300 });
+    await expect(readAdminRsvpSummary(eventId)).resolves.toEqual({ total: 2500, confirmed: 1600, declined: 300, pending: 600 });
+    expect(query).toHaveBeenCalledTimes(3);
+  });
+  it("shows zero counts for an event without guests", async () => {
+    setupCounts({ pending: 0, confirmed: 0, declined: 0 });
+    await expect(readAdminRsvpSummary(eventId)).resolves.toEqual({ total: 0, confirmed: 0, declined: 0, pending: 0 });
+  });
+  it("includes legacy responses without subtracting them from registered pending guests", async () => {
+    setupCounts({ pending: 5, confirmed: 15, declined: 4 });
+    await expect(readAdminRsvpSummary(eventId)).resolves.toEqual({ total: 24, confirmed: 15, declined: 4, pending: 5 });
+  });
+  it("requires admin authorization and a valid event before querying", async () => {
+    requireAdmin.mockRejectedValue(new Error("forbidden"));
+    await expect(readAdminRsvpSummary(eventId)).rejects.toThrow("forbidden");
+    expect(createAdminSupabaseClient).not.toHaveBeenCalled();
+    requireAdmin.mockResolvedValue({ userId: "admin" });
+    await expect(readAdminRsvpSummary("invalid")).rejects.toMatchObject({ status: 400 });
+    expect(createAdminSupabaseClient).not.toHaveBeenCalled();
+  });
+  it("reports query failures without displaying misleading zero counts", async () => {
+    setupCounts({ pending: 40, confirmed: 50, declined: 10 }, true);
+    await expect(readAdminRsvpSummary(eventId)).rejects.toMatchObject({ status: 503 });
   });
 });

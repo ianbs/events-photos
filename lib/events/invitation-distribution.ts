@@ -4,8 +4,15 @@ export function createInvitationMessage(name: string, eventName: string, url: st
   return renderInvitationMessage(template || DEFAULT_WHATSAPP_MESSAGE, name, eventName, url);
 }
 
-export function createWhatsAppUrl(phone: string | null, message: string) {
-  return phone ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}` : null;
+export function createWhatsAppUrl(phone: string | null, message: string, target: "app" | "web" = "app") {
+  if (!phone) return null;
+  const text = encodeURIComponent(message);
+  // wa.me's redirect can replace astral emoji with U+FFFD before opening the app.
+  return target === "web" ? `https://web.whatsapp.com/send?phone=${phone}&text=${text}` : `https://api.whatsapp.com/send?phone=${phone}&text=${text}`;
+}
+
+export function includeInvitationLink(message: string, url: string) {
+  return message.includes(url) ? message : `${message.trim()}\n\n${url}`.trim();
 }
 
 export function createInvitationCsv(rows: string[][]): string {

@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { EventMusicPlayer } from "@/components/event-music-player";
 
 import type { EventSummary } from "@/lib/events/event";
 import { getEventMapsUrl } from "@/lib/events/event-location";
@@ -35,5 +36,6 @@ export function EventPublicHeader({ event, label, description }: {
     {mapsUrl ? <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
       className="mt-3 rounded-xl border border-[var(--event-primary)] px-4 py-2 text-sm font-medium text-[var(--event-primary)] hover:bg-slate-50">Abrir no mapa</a> : null}
     {description ? <p className="mt-5 max-w-lg text-center text-slate-600">{description}</p> : null}
+    {event.musicUrl ? <EventMusicPlayer src={event.musicUrl} eventName={event.name} /> : null}
   </>;
 }

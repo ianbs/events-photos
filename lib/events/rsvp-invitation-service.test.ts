@@ -3,7 +3,7 @@ const { requireAdmin, createAdminSupabaseClient } = vi.hoisted(() => ({ requireA
 vi.mock("@/lib/auth/admin-authorization", () => ({ requireAdmin }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminSupabaseClient }));
 vi.mock("@/lib/config/server-environment", () => ({ getServerEnvironment: () => ({ NEXT_PUBLIC_APP_URL: "https://events.example.com" }) }));
-import { changeRsvpInvitation, createRsvpInvitation, createRsvpInvitationBatch, deleteRsvpGuest, exportRsvpInvitations, listRsvpInvitations } from "./rsvp-invitation-service";
+import { changeRsvpInvitation, createRsvpInvitation, createRsvpInvitationBatch, deleteRsvpGuest, exportRsvpInvitations, listRsvpInvitations, prepareWhatsAppInvitations } from "./rsvp-invitation-service";
 
 const eventId = "11111111-1111-4111-8111-111111111111";
 const code = "a".repeat(43);
@@ -33,6 +33,7 @@ describe("guest registration and recoverable invitations", () => {
     await expect(listRsvpInvitations(eventId)).rejects.toThrow("forbidden");
     await expect(changeRsvpInvitation(eventId, { guestId: eventId, action: "retrieve" })).rejects.toThrow("forbidden");
     await expect(exportRsvpInvitations(eventId, { guestIds: [eventId] })).rejects.toThrow("forbidden");
+    await expect(prepareWhatsAppInvitations(eventId, { guestIds: [eventId] })).rejects.toThrow("forbidden");
     await expect(deleteRsvpGuest(eventId, { guestId: eventId })).rejects.toThrow("forbidden");
     expect(createAdminSupabaseClient).not.toHaveBeenCalled();
   });
@@ -41,7 +42,7 @@ describe("guest registration and recoverable invitations", () => {
     const result = await createRsvpInvitation(eventId, { name: " Ana ", phone: "+55 (11) 99999-9999" });
     expect(result.code).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(rpc).toHaveBeenCalledWith("create_rsvp_guest", { p_event_id: eventId, p_name: "Ana", p_code: result.code, p_phone: "5511999999999", p_email: undefined, p_max_companions: undefined });
-    expect(result.whatsappUrl).toContain("https://wa.me/5511999999999");
+    expect(result.whatsappUrl).toContain("https://api.whatsapp.com/send?phone=5511999999999");
   });
   it("retrieves the same link repeatedly without overwriting the secret or RSVP", async () => {
     const { query } = setup();
@@ -78,6 +79,22 @@ describe("guest registration and recoverable invitations", () => {
   it("rejects an export containing guests from another event", async () => {
     setup([]);
     await expect(exportRsvpInvitations(eventId, { guestIds: [eventId] })).rejects.toMatchObject({ status: 400 });
+  });
+  it("prepares the selected queue in selection order with each guest's own invitation", async () => {
+    const secondId = "22222222-2222-4222-8222-222222222222";
+    const { query } = setup([guestRow, { ...guestRow, guest_id: secondId, name: "Bruno", invitation_code: "b".repeat(43) }], "Oi, {nome}! {link}");
+    const invitations = await prepareWhatsAppInvitations(eventId, { guestIds: [secondId, eventId, secondId] });
+    expect(query.eq).toHaveBeenCalledWith("event_id", eventId);
+    expect(query.in).toHaveBeenCalledWith("guest_id", [secondId, eventId]);
+    expect(invitations).toEqual([
+      expect.objectContaining({ guestId: secondId, name: "Bruno", url: expect.stringContaining(`#convite=${"b".repeat(43)}`), message: expect.stringContaining("Oi, Bruno!") }),
+      expect.objectContaining({ guestId: eventId, name: "Ana", url: expect.stringContaining(`#convite=${code}`), message: expect.stringContaining("Oi, Ana!") }),
+    ]);
+    expect(query.update).not.toHaveBeenCalled();
+  });
+  it.each([{ phone: null }, { invitation_revoked_at: "2026-10-05" }, { invitation_code: null }])("rejects an unavailable guest when preparing WhatsApp %j", async (changes) => {
+    setup([{ ...guestRow, ...changes }]);
+    await expect(prepareWhatsAppInvitations(eventId, { guestIds: [eventId] })).rejects.toMatchObject({ status: 400 });
   });
   it("rejects duplicate email registration without overwriting the existing guest", async () => {
     const { rpc } = setup(); rpc.mockResolvedValue({ data: null, error: { code: "23505" } });

@@ -4,9 +4,11 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { apiErrorResponseSchema } from "@/lib/photos/upload-contract";
-import { createWhatsAppUrl } from "@/lib/events/invitation-distribution";
+import { createWhatsAppUrl, includeInvitationLink } from "@/lib/events/invitation-distribution";
+import { whatsappInvitationsResponseSchema } from "@/lib/events/rsvp-guest-contract";
 import { getRsvpCompanionLimit } from "@/lib/events/rsvp-companions";
 import { RsvpGuestBatchForm } from "@/components/rsvp-guest-batch-form";
+import { RsvpWhatsAppSender, type WhatsAppInvitation } from "@/components/rsvp-whatsapp-sender";
 
 type Guest = {
   guest_id: string; name: string; email: string | null; phone: string | null;
@@ -27,7 +29,22 @@ export function RsvpInvitations({ eventId, invitations, total, page, eventMaxCom
   const [editing, setEditing] = useState<Guest | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [deleting, setDeleting] = useState<Guest | null>(null);
+  const [whatsappInvitations, setWhatsappInvitations] = useState<WhatsAppInvitation[] | null>(null);
   const exportable = invitations.filter((guest) => guest.phone && guest.hasRecoverableLink && !guest.invitation_revoked_at);
+  const pendingInvitations = exportable.filter((guest) => !guest.response);
+
+  async function prepareWhatsApp(guestIds: string[]) {
+    setPending(true); setMessage("");
+    try {
+      const response = await fetch(`/api/admin/events/${eventId}/invitations/whatsapp`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ guestIds }),
+      });
+      const body: unknown = await response.json();
+      if (!response.ok) throw responseError(body);
+      setWhatsappInvitations(whatsappInvitationsResponseSchema.parse(body).invitations);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Não foi possível preparar as mensagens."); }
+    finally { setPending(false); }
+  }
 
   async function request(method: "POST" | "PATCH" | "DELETE", input: unknown) {
     setPending(true); setMessage(""); setGenerated(null);
@@ -123,7 +140,9 @@ export function RsvpInvitations({ eventId, invitations, total, page, eventMaxCom
       <p className="text-xs text-slate-600">Você pode ajustar esta mensagem antes de abrir o WhatsApp. Esta edição vale apenas para este envio; o link individual será incluído se necessário.</p>
       <div className="flex flex-wrap gap-4">
         <button type="button" onClick={() => { void navigator.clipboard.writeText(generated.url).then(() => setMessage("Link copiado."), () => setMessage("Selecione e copie o link acima.")); }} className="font-medium text-emerald-800 underline">Copiar link</button>
-        {generated.phone ? <a href={createWhatsAppUrl(generated.phone, generated.message.includes(generated.url) ? generated.message : `${generated.message}\n\n${generated.url}`)!} target="_blank" rel="noopener noreferrer" className="font-medium text-emerald-800 underline">Abrir mensagem no WhatsApp</a> : null}
+        <button type="button" onClick={() => { void navigator.clipboard.writeText(includeInvitationLink(generated.message, generated.url)).then(() => setMessage("Mensagem e link copiados."), () => setMessage("Selecione e copie a mensagem e o link acima.")); }} className="font-medium text-emerald-800 underline">Copiar mensagem e link</button>
+        {generated.phone ? <a href={createWhatsAppUrl(generated.phone, includeInvitationLink(generated.message, generated.url))!} target="_blank" rel="noopener noreferrer" className="font-medium text-emerald-800 underline">Abrir mensagem no WhatsApp</a> : null}
+        {generated.phone ? <a href={createWhatsAppUrl(generated.phone, includeInvitationLink(generated.message, generated.url), "web")!} target="_blank" rel="noopener noreferrer" className="font-medium text-emerald-800 underline">Abrir WhatsApp Web</a> : null}
       </div>
     </div> : null}
     {deleting ? <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm">
@@ -137,9 +156,12 @@ export function RsvpInvitations({ eventId, invitations, total, page, eventMaxCom
     </div> : null}
     <div className="mt-6 flex flex-wrap items-center gap-4">
       <p className="text-sm text-slate-600">{total} convidado(s) · {selected.length} selecionado(s)</p>
+      <button type="button" disabled={pending || !selected.length} onClick={() => void prepareWhatsApp(selected)} className="rounded-xl bg-emerald-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-40">Preparar WhatsApp dos selecionados</button>
+      <button type="button" disabled={pending || !pendingInvitations.length} onClick={() => setSelected(pendingInvitations.map((guest) => guest.guest_id))} className="text-sm text-amber-800 underline disabled:opacity-40">Selecionar pendentes desta página</button>
       <button type="button" disabled={pending || !selected.length} onClick={() => void exportSelected()} className="rounded-xl border border-emerald-700 px-3 py-2 text-sm text-emerald-700 disabled:opacity-40">Exportar selecionados para WhatsApp</button>
     </div>
-    <p className="mt-2 text-xs text-slate-500">A exportação prepara as mensagens e links. Abrir o WhatsApp permite revisar e enviar cada mensagem.</p>
+    <p className="mt-2 text-xs text-slate-500">Selecione convidados para revisar as mensagens e abrir o WhatsApp um por vez. Cada mensagem usa o link individual do convidado.</p>
+    {whatsappInvitations ? <RsvpWhatsAppSender invitations={whatsappInvitations} onDismiss={() => setWhatsappInvitations(null)} /> : null}
     <div className="mt-4 overflow-x-auto">
       <table className="w-full text-left text-sm">
         <caption className="sr-only">Convidados e convites individuais</caption>
@@ -161,6 +183,7 @@ export function RsvpInvitations({ eventId, invitations, total, page, eventMaxCom
             {guest.response?.companion_names.length ? <p className="mt-1 whitespace-pre-line text-xs text-slate-500">{guest.response.companion_names.join("\n")}</p> : null}</td>
           <td className="p-3">{guest.invitation_revoked_at ? "Revogado" : guest.hasRecoverableLink ? "Ativo" : "Precisa gerar código"}</td>
           <td className="p-3"><div className="flex min-w-40 flex-wrap gap-x-3 gap-y-2">
+            {guest.phone && guest.hasRecoverableLink && !guest.invitation_revoked_at ? <button type="button" disabled={pending} onClick={() => void prepareWhatsApp([guest.guest_id])} className="rounded-lg bg-emerald-700 px-3 py-1.5 font-medium text-white disabled:opacity-40">WhatsApp</button> : null}
             <button disabled={pending} onClick={() => { setEditing(guest); setGenerated(null); }} className="text-slate-700 underline">Editar</button>
             {guest.hasRecoverableLink && !guest.invitation_revoked_at ? <button disabled={pending} onClick={() => void request("PATCH", { guestId: guest.guest_id, action: "retrieve" })} className="text-emerald-700 underline">Ver link e código</button> : null}
             <button disabled={pending} onClick={() => void request("PATCH", { guestId: guest.guest_id, action: "renew" })} className="text-emerald-700 underline">{guest.hasRecoverableLink ? "Substituir código" : "Gerar código"}</button>

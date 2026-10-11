@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { EditEventForm } from "@/components/edit-event-form";
 import { EventBrandingForm } from "@/components/event-branding-form";
+import { EventMusicForm } from "@/components/event-music-form";
 import { ApplicationError } from "@/lib/errors/application-error";
 import { findAdminEventById } from "@/lib/events/admin-event-service";
 
@@ -58,6 +59,11 @@ export default async function EditAdminEventPage({
           }}
         />
       </section>
+      <EventMusicForm
+        eventId={event.id}
+        initialMusicUrl={event.musicUrl}
+        hasMusic={event.hasMusic}
+      />
       <EventBrandingForm
         eventId={event.id}
         eventName={event.name}

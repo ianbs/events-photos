@@ -122,7 +122,7 @@ export async function changeRsvpInvitation(eventId: string, input: unknown) {
   return result.data.action === "renew" && data.invitation_code ? invitationResult(event, data.invitation_code, data) : null;
 }
 
-export async function exportRsvpInvitations(eventId: string, input: unknown) {
+export async function prepareWhatsAppInvitations(eventId: string, input: unknown) {
   const event = await adminEvent(eventId);
   const result = invitationExportSchema.safeParse(input);
   if (!result.success) throw validationError("Selecione de 1 a 500 convidados.");
@@ -135,11 +135,20 @@ export async function exportRsvpInvitations(eventId: string, input: unknown) {
   if (data.some((guest) => !guest.invitation_code || guest.invitation_revoked_at || !guest.phone)) {
     throw validationError("Selecione convidados com telefone e convite ativo recuperável.");
   }
+  const byId = new Map(data.map((guest) => [guest.guest_id, guest]));
+  return ids.map((guestId) => {
+    const guest = byId.get(guestId)!;
+    const invitation = invitationResult(event, guest.invitation_code!, guest);
+    return { guestId, name: guest.name, phone: guest.phone!, url: invitation.url, message: invitation.message };
+  });
+}
+
+export async function exportRsvpInvitations(eventId: string, input: unknown) {
+  const invitations = await prepareWhatsAppInvitations(eventId, input);
   return createInvitationCsv([
     ["Nome", "Telefone", "Link do convite", "Mensagem", "Abrir WhatsApp"],
-    ...data.map((guest) => {
-      const invitation = invitationResult(event, guest.invitation_code!, guest);
-      return [guest.name, guest.phone!, invitation.url, invitation.message, invitation.whatsappUrl!];
+    ...invitations.map((invitation) => {
+      return [invitation.name, invitation.phone, invitation.url, invitation.message, createWhatsAppUrl(invitation.phone, invitation.message)!];
     }),
   ]);
 }

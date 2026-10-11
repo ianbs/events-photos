@@ -3,6 +3,7 @@ import { cache } from "react";
 
 import { eventSlugSchema } from "@/lib/events/event-validation";
 import { createEventBrandingUrls } from "@/lib/events/event-branding-storage";
+import { createEventMusicUrl } from "@/lib/events/event-music-storage";
 import { eventBrandingColorsSchema } from "@/lib/events/event-branding-policy";
 import { isEventActive, type EventSummary } from "@/lib/events/event";
 import { infrastructureError } from "@/lib/errors/application-error";
@@ -24,7 +25,7 @@ export const findEventBySlug = cache(async function findEventBySlug(
   const { data, error } = await supabase
     .from("events")
     .select(
-      "id,name,slug,event_date,is_active,primary_color,accent_color,cover_storage_path,logo_storage_path,closing_message,photos_available_until,organizer_contact,location,maps_url,max_companions,instructions",
+      "id,name,slug,event_date,is_active,primary_color,accent_color,cover_storage_path,logo_storage_path,closing_message,photos_available_until,organizer_contact,location,maps_url,max_companions,instructions,music_storage_path",
     )
     .eq("slug", slugResult.data)
     .maybeSingle();
@@ -52,6 +53,7 @@ export const findEventBySlug = cache(async function findEventBySlug(
 
   return {
     ...colors.data,
+    musicUrl: await createEventMusicUrl(data.music_storage_path),
     instructions: data.instructions,
     availabilityUntil: data.photos_available_until,
     closingMessage: data.closing_message,
