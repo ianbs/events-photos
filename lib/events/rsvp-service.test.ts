@@ -160,22 +160,43 @@ describe("event-wide RSVP summary", () => {
   const eventId = "11111111-1111-4111-8111-111111111111";
   beforeEach(() => { vi.clearAllMocks(); requireAdmin.mockResolvedValue({ userId: "admin" }); });
 
-  function setupCounts(counts: { pending: number; confirmed: number; declined: number }, fail = false) {
+  function setupCounts(counts: { pending: number; confirmed: number; declined: number }, options: {
+    fail?: boolean; companions?: number[]; rowLimit?: number; failAfterOffset?: number;
+  } = {}) {
     const fetchQuery = vi.fn(async (input: RequestInfo | URL, options?: RequestInit) => {
       const url = new URL(String(input));
-      expect(options?.method).toBe("HEAD");
-      expect(new Headers(options?.headers).get("Prefer")).toContain("count=exact");
       expect(url.searchParams.get("event_id")).toBe(`eq.${eventId}`);
-      expect(url.searchParams.has("limit")).toBe(false);
-      expect(url.searchParams.has("offset")).toBe(false);
       if (url.pathname.endsWith("guests")) {
         expect(url.searchParams.get("select")).toBe("id,event_rsvp_identities!inner(guest_id),event_rsvps()");
         expect(url.searchParams.get("event_rsvps")).toBe("is.null");
       }
       const count = url.pathname.endsWith("guests") ? counts.pending
         : url.searchParams.get("attending") === "eq.true" ? counts.confirmed : counts.declined;
-      return new Response(null, { status: fail ? 500 : 200, headers: fail ? {} : { "content-range": `*/${count}` } });
+      return respond(url, options, count);
     });
+    function respond(url: URL, request: RequestInit | undefined, count: number) {
+      const offset = Number(url.searchParams.get("offset") ?? 0);
+      if (options.fail || (options.failAfterOffset !== undefined && offset >= options.failAfterOffset)) {
+        return new Response(null, { status: 500 });
+      }
+      if (url.searchParams.get("attending") !== "eq.true") {
+        expect(request?.method).toBe("HEAD");
+        expect(new Headers(request?.headers).get("Prefer")).toContain("count=exact");
+        expect(url.searchParams.has("limit")).toBe(false);
+        expect(url.searchParams.has("offset")).toBe(false);
+        return new Response(null, { status: 200, headers: { "content-range": `*/${count}` } });
+      }
+      expect(request?.method).toBe("GET");
+      expect(url.searchParams.get("select")).toBe("guest_id,companions");
+      expect(url.searchParams.get("order")).toBe("guest_id.asc");
+      const size = Math.min(Number(url.searchParams.get("limit")), options.rowLimit ?? 500, count - offset);
+      const rows = Array.from({ length: size }, (_, index) => ({
+        guest_id: `guest-${offset + index}`, companions: options.companions?.[offset + index] ?? 0,
+      }));
+      return new Response(JSON.stringify(rows), { status: 200, headers: {
+        "content-type": "application/json", "content-range": `${offset}-${offset + size - 1}/${count}`,
+      } });
+    }
     createAdminSupabaseClient.mockReturnValue(createClient("https://summary.example.com", "test-key", {
       auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: fetchQuery },
     }));
@@ -183,17 +204,28 @@ describe("event-wide RSVP summary", () => {
   }
 
   it("counts the entire event even beyond page and API row limits", async () => {
-    const query = setupCounts({ pending: 600, confirmed: 1600, declined: 300 });
-    await expect(readAdminRsvpSummary(eventId)).resolves.toEqual({ total: 2500, confirmed: 1600, declined: 300, pending: 600 });
-    expect(query).toHaveBeenCalledTimes(3);
+    const companions = Array.from({ length: 1600 }, (_, index) => index % 4);
+    const query = setupCounts({ pending: 600, confirmed: 1600, declined: 300 }, { companions });
+    await expect(readAdminRsvpSummary(eventId)).resolves.toEqual({
+      total: 4900, confirmed: 4000, confirmedGuests: 1600, companions: 2400, declined: 300, pending: 600,
+    });
+    expect(query).toHaveBeenCalledTimes(6);
   });
   it("shows zero counts for an event without guests", async () => {
     setupCounts({ pending: 0, confirmed: 0, declined: 0 });
-    await expect(readAdminRsvpSummary(eventId)).resolves.toEqual({ total: 0, confirmed: 0, declined: 0, pending: 0 });
+    await expect(readAdminRsvpSummary(eventId)).resolves.toEqual({ total: 0, confirmed: 0, confirmedGuests: 0, companions: 0, declined: 0, pending: 0 });
   });
   it("includes legacy responses without subtracting them from registered pending guests", async () => {
-    setupCounts({ pending: 5, confirmed: 15, declined: 4 });
-    await expect(readAdminRsvpSummary(eventId)).resolves.toEqual({ total: 24, confirmed: 15, declined: 4, pending: 5 });
+    setupCounts({ pending: 5, confirmed: 15, declined: 4 }, { companions: [0, 2, 3] });
+    await expect(readAdminRsvpSummary(eventId)).resolves.toEqual({ total: 29, confirmed: 20, confirmedGuests: 15, companions: 5, declined: 4, pending: 5 });
+  });
+  it("sums companions when the API returns fewer rows than requested", async () => {
+    setupCounts({ pending: 2, confirmed: 7, declined: 1 }, { rowLimit: 2, companions: [0, 1, 2, 0, 3, 4, 5] });
+    await expect(readAdminRsvpSummary(eventId)).resolves.toMatchObject({ total: 25, confirmed: 22, confirmedGuests: 7, companions: 15 });
+  });
+  it("rejects an incomplete companion count if a later page fails", async () => {
+    setupCounts({ pending: 0, confirmed: 3, declined: 0 }, { rowLimit: 2, failAfterOffset: 2 });
+    await expect(readAdminRsvpSummary(eventId)).rejects.toMatchObject({ status: 503 });
   });
   it("requires admin authorization and a valid event before querying", async () => {
     requireAdmin.mockRejectedValue(new Error("forbidden"));
@@ -204,7 +236,7 @@ describe("event-wide RSVP summary", () => {
     expect(createAdminSupabaseClient).not.toHaveBeenCalled();
   });
   it("reports query failures without displaying misleading zero counts", async () => {
-    setupCounts({ pending: 40, confirmed: 50, declined: 10 }, true);
+    setupCounts({ pending: 40, confirmed: 50, declined: 10 }, { fail: true });
     await expect(readAdminRsvpSummary(eventId)).rejects.toMatchObject({ status: 503 });
   });
 });

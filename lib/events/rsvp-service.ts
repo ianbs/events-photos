@@ -74,12 +74,26 @@ export async function readAdminRsvpSummary(eventId: string) {
     supabase.from("guests")
       .select("id,event_rsvp_identities!inner(guest_id),event_rsvps()", { count: "exact", head: true })
       .eq("event_id", eventId).is("event_rsvps", null),
-    supabase.from("event_rsvps").select("guest_id", { count: "exact", head: true }).eq("event_id", eventId).eq("attending", true),
+    supabase.from("event_rsvps").select("guest_id,companions", { count: "exact" })
+      .eq("event_id", eventId).eq("attending", true).order("guest_id").range(0, 499),
     supabase.from("event_rsvps").select("guest_id", { count: "exact", head: true }).eq("event_id", eventId).eq("attending", false),
   ]);
   if ([pending, confirmed, declined].some((result) => result.error || result.count === null)) throw infrastructureError();
+  if (!confirmed.data) throw infrastructureError();
+  let companions = confirmed.data.reduce((sum, response) => sum + response.companions, 0);
+  let offset = confirmed.data.length;
+  // Follow the actual number returned, even when the API row limit is below 500.
+  while (offset < confirmed.count!) {
+    const { data, error } = await supabase.from("event_rsvps").select("guest_id,companions")
+      .eq("event_id", eventId).eq("attending", true).order("guest_id").range(offset, offset + 499);
+    if (error || !data?.length) throw infrastructureError();
+    companions += data.reduce((sum, response) => sum + response.companions, 0);
+    offset += data.length;
+  }
+  const confirmedPeople = confirmed.count! + companions;
   return {
-    total: pending.count! + confirmed.count! + declined.count!,
-    confirmed: confirmed.count!, declined: declined.count!, pending: pending.count!,
+    total: pending.count! + confirmedPeople + declined.count!,
+    confirmed: confirmedPeople, confirmedGuests: confirmed.count!, companions,
+    declined: declined.count!, pending: pending.count!,
   };
 }

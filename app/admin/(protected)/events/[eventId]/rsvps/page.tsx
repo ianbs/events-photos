@@ -32,6 +32,7 @@ export default async function AdminRsvpsPage({ params, searchParams }: {
           <div className="rounded-2xl bg-emerald-50 p-5 ring-1 ring-emerald-200">
             <dt className="text-sm font-medium text-emerald-800">Confirmados</dt>
             <dd className="mt-2 text-3xl font-semibold text-emerald-900">{summary.confirmed}</dd>
+            <dd className="mt-1 text-xs text-emerald-800">{summary.confirmedGuests} convidado(s) + {summary.companions} acompanhante(s)</dd>
           </div>
           <div className="rounded-2xl bg-amber-50 p-5 ring-1 ring-amber-200">
             <dt className="text-sm font-medium text-amber-800">Pendentes</dt>
@@ -42,7 +43,7 @@ export default async function AdminRsvpsPage({ params, searchParams }: {
             <dd className="mt-2 text-3xl font-semibold text-slate-900">{summary.declined}</dd>
           </div>
         </dl>
-        <p className="mt-3 text-xs text-slate-500">{summary.total} convidado(s) no evento inteiro. Os totais incluem todas as respostas e os convidados ainda sem resposta, sem contar acompanhantes.</p>
+        <p className="mt-3 text-xs text-slate-500">{summary.total} pessoa(s) no total: convidados e acompanhantes confirmados, convidados pendentes e convidados que não poderão ir. Acompanhantes entram na contagem de confirmados; pendentes e recusas contam apenas os convidados.</p>
       </section>
       <p className="mt-2 text-sm text-slate-600">Limite padrão: {event.maxCompanions ?? 10} acompanhante(s). Você pode definir um limite individual no cadastro de cada convidado.</p>
       <Link href={`/e/${event.slug}/save-the-date`} target="_blank" rel="noreferrer"
