@@ -135,22 +135,105 @@ O histórico remoto deste projeto de teste está sincronizado com as migrations 
 - O bucket `event-branding` é privado, limitado a 5 MiB e aceita somente JPEG, PNG e WebP.
 - URLs para leitura e download são assinadas e expiram em até cinco minutos.
 
-### Criar o primeiro administrador
+### Superadministração e usuários
 
-1. No dashboard, acesse **Authentication > Providers > Email** e desative signup público.
-2. Em **Authentication > URL Configuration**, configure a URL de produção e mantenha `http://localhost:3000` nos redirects locais.
-3. Em **Authentication > Users**, crie manualmente o usuário com e-mail confirmado e senha forte.
-4. No SQL Editor, adicione o usuário à allowlist:
+Aplique a migration `20261018215113_add_super_admin_user_management.sql` antes
+de executar esta versão. Ela preserva os administradores atuais com perfil
+`admin` e acesso ativo. Nenhuma conta ganha superadministração automaticamente.
 
-   ```sql
-   insert into public.admin_users (user_id)
-   select id
-   from auth.users
-   where email = 'ADMIN@EXEMPLO.COM'
-   on conflict (user_id) do nothing;
-   ```
+Para configurar a primeira conta de superadministrador, execute no servidor:
 
-5. Acesse `/admin/login`. Não existe endpoint de signup na aplicação.
+```bash
+pnpm admin:bootstrap EMAIL_DO_RESPONSAVEL
+```
+
+O comando requer a chave privada em `.env.local`. Se o e-mail já tiver conta,
+a senha é preservada; se for novo, cria a conta confirmada e exibe uma senha
+aleatória uma única vez. Guarde-a antes de fechar o terminal. Esse comando é
+restrito a operadores com acesso ao servidor, sem endpoint público de cadastro.
+
+Acesse `/admin/login` e abra **Usuários** (`/admin/users`). O painel lista as
+contas do Supabase Auth com paginação, permite criar usuários com senha definida no painel ou com link de definição de senha enviado por e-mail,
+definir **Administrador** ou **Superadministrador** e bloquear/reativar acesso.
+Administradores gerenciam todos os eventos, fotos e convidados; superadministradores
+também gerenciam contas. Não há isolamento de eventos por administrador.
+
+Para liberar uma conta que já existe, localize-a na lista, escolha o perfil e
+marque **Acesso ativo**. O cadastro de um e-mail repetido não redefine sua senha.
+Na opção por e-mail, o usuário escolhe a própria senha pelo link recebido. Senhas nunca são exibidas na listagem nem enviadas por e-mail.
+Uma falha parcial de cadastro pode deixar uma conta sem acesso: atualize a lista
+e autorize-a antes de repetir o cadastro.
+
+O acesso é consultado no banco a cada operação administrativa; bloquear uma conta
+impede novas solicitações mesmo com sessão já aberta. URLs de fotos anteriormente
+assinadas continuam válidas até expirar. Não é possível mudar o próprio perfil ou
+bloquear a própria conta. As mudanças são serializadas no banco e verificam de novo
+o superadministrador responsável, impedindo que dois deles se bloqueiem simultaneamente.
+A função `manage_admin_access` só pode ser executada pela chave privada do servidor;
+clientes autenticados continuam limitados à leitura da própria membership por RLS.
+
+No dashboard do Supabase, mantenha o signup público desativado em **Authentication >
+Providers > Email** e configure a URL da aplicação em **Authentication > URL Configuration**.
+
+A opção **Excluir usuário** remove permanentemente a conta no Supabase Auth e suas
+permissões. Exige confirmação pelo e-mail cadastrado (ou identificador, para contas
+sem e-mail) e impede excluir a própria conta, inclusive por requisição alterada.
+Somente superadministradores ativos podem executar a ação. Antes da remoção,
+o servidor bloqueia o acesso com nova verificação de permissão no banco; se o Auth
+falhar, o acesso permanece bloqueado e a exclusão pode ser repetida. Eventos, fotos
+e convidados são preservados. A remoção também impede renovar sessões existentes.
+
+### Definir e redefinir senhas
+
+Em **Novo usuário**, a opção inicial **Definir agora no painel, sem e-mail** permite
+informar e confirmar uma senha de 12 a 128 caracteres. A conta é criada confirmada,
+com o perfil selecionado, sem solicitar envio de e-mail. Nas contas existentes,
+abra **Definir senha no painel** e salve uma nova senha. As duas ações exigem
+superadministrador ativo e validam a senha no servidor. A alteração não modifica
+o perfil nem reativa uma conta bloqueada. Senhas não são incluídas nas respostas
+das ações ou persistidas pela aplicação fora do Supabase Auth.
+
+Se preferir, selecione **Enviar link por e-mail para o usuário definir**.
+Nesse modo, o servidor cria uma
+senha aleatória que não é exibida, libera o perfil e solicita ao Supabase um link
+de recuperação. O destinatário abre `/admin/reset-password`, escolhe e confirma
+uma senha de 12 a 128 caracteres e entra normalmente. O botão **Enviar link para
+definir senha** também atende contas existentes e pode ser usado para reenviar.
+A ação exige superadministrador ativo, consulta o e-mail real do usuário no Auth
+e não reativa contas bloqueadas. Uma falha de e-mail preserva a conta para reenvio.
+
+O envio usa um cliente Auth isolado com fluxo implícito: o link funciona em outro
+dispositivo, sem depender de um verificador PKCE salvo no navegador do administrador.
+A página remove os tokens do histórico antes de verificar a sessão, mostra o e-mail
+da conta e trata links inválidos, usados ou expirados. Templates com
+`{{ .ConfirmationURL }}` usam o fragmento padrão do Supabase; também são aceitos
+`token_hash` e `type=recovery` de um template personalizado. A redefinição não muda
+perfis nem libera a administração. O Auth verifica os tokens e a senha no backend.
+
+Configure `NEXT_PUBLIC_APP_URL` com a URL pública ao publicar. Adicione o endereço
+completo `https://SEU_SITE/admin/reset-password` aos redirects permitidos em
+**Authentication > URL Configuration**. O redirecionamento local e o mínimo de
+12 caracteres já foram preparados no projeto vinculado. Links com localhost
+atendem apenas o ambiente local.
+
+Para enviar a usuários em geral, configure SMTP; o serviço padrão do Supabase é
+restrito aos endereços da equipe do projeto. Sem domínio próprio, o Gmail pode
+ser usado com `smtp.gmail.com`, porta `587`, o endereço completo como usuário e
+uma **senha de app**. A conta Google precisa de verificação em duas etapas.
+Consulte [as instruções do Google](https://support.google.com/accounts/answer/185833?hl=pt-BR).
+
+Foi preparado um arquivo local `.env.smtp.local`, ignorado pelo Git. Preencha
+`SMTP_PASS` com a senha de app; ajuste `SMTP_USER` e `SMTP_ADMIN_EMAIL` se usar
+outra conta. O arquivo aceita qualquer provedor SMTP compatível. Em seguida:
+
+```bash
+pnpm supabase:smtp:configure
+```
+
+O comando usa a sessão da CLI ou `SUPABASE_ACCESS_TOKEN`, preserva os redirects
+existentes e verifica a configuração sem imprimir segredos ou enviar mensagens.
+Depois, use o botão de envio em **Usuários** para conferir o recebimento. As
+credenciais SMTP ficam no Supabase; não precisam ser copiadas para o navegador.
 
 ### Tipos oficiais do banco
 
@@ -174,6 +257,8 @@ O navegador mantém um UUID criptograficamente seguro no `localStorage`, isolado
 ### Convidados e confirmação de presença
 
 O save the date usa apenas o convite individual por link ou código. Abrir o link já recupera a confirmação, sem pedir e-mail. O mesmo convite funciona em diferentes dispositivos, e novas respostas atualizam o registro existente. O token local continua restrito ao fluxo de fotos.
+
+A listagem de respostas aparece primeiro, com busca por nome em todas as páginas, filtros de confirmações ou recusas e ordenação por atualização ou nome. A paginação preserva os filtros e a página da lista de convites. No celular, as respostas aparecem em cartões; os nomes dos acompanhantes podem ser expandidos. O resumo distingue convidados e pessoas confirmadas (incluindo acompanhantes) e mostra o percentual de convidados que já responderam. O cadastro em lote fica recolhido quando já há convidados, e as ações secundárias de cada convite ficam em **Mais ações**.
 
 Na página administrativa de confirmações, cadastre nome, WhatsApp com código do país e e-mail opcional de contato. O e-mail não autentica convidados. A tabela reúne contatos, status da confirmação e ações para editar o cadastro, recuperar o mesmo link/código, substituir o código ou revogar o convite. Consultar um convite não invalida o link anterior. Substituir o código mantém a resposta existente e invalida o código anterior.
 
@@ -221,6 +306,24 @@ O Supabase Auth mantém a sessão em cookies SSR atualizados pelo `proxy.ts`. La
 Administradores podem criar eventos em `/admin/events/new` e editá-los em `/admin/events/[eventId]/edit`. Nome, slug, data e status são validados novamente no servidor antes da escrita privilegiada; um slug duplicado é tratado como conflito. Alterar o slug invalida links e QR Codes anteriores, por isso a interface exibe um alerta. A galeria administrativa separa as fotos por evento.
 
 Ao encerrar um evento, a mesma URL pública passa a exibir a mensagem de agradecimento, o prazo opcional de disponibilidade das fotos e o contato opcional do organizador. Eventos encerrados continuam ocultos pela política pública do banco; a página resolve um slug validado exclusivamente no servidor e não expõe uma listagem de eventos inativos pela Data API.
+
+**Excluir evento** está disponível na listagem e ao final da edição. A tela de
+confirmação mostra o impacto e exige digitar o nome exato do evento. A operação
+é permanente: desativa o evento, remove fotos cadastradas do provedor registrado
+(Supabase ou S3), limpa capa, logotipo e música e só então exclui o registro.
+Convidados, convites, respostas de presença e comprovantes de lotes são removidos
+pelas FKs em uma transação final. Cada requisição limpa até 20 fotos, com quatro
+operações de storage por vez. A página continua os lotes até concluir.
+
+Em caso de falha, o evento fica desativado; arquivos já removidos não são restaurados.
+Retome pela mesma opção **Excluir evento**. As referências dos arquivos são apagadas
+somente depois da remoção do objeto, permitindo repetir a limpeza. O finalizador
+bloqueia a linha do evento e recusa a exclusão enquanto houver fotos ou arquivos
+associados. A API exige administrador ativo, confirmação do nome e a mesma origem
+da aplicação. A migration `20261018221817_add_guarded_event_deletion.sql` deve ser
+aplicada antes de usar a funcionalidade. Uploads diretos iniciados anteriormente,
+ainda sem registro no banco, não fazem parte dessa limpeza; uploads abandonados
+precisam de uma rotina de expiração do storage.
 
 O painel resume fotos, dispositivos, armazenamento e último envio por evento. O acervo usa filtros por evento e período, ordenação e paginação por cursor, assinando URLs apenas para a página visível. É possível baixar uma seleção ou todo o evento como ZIP transmitido a partir do bucket privado, sem tornar os objetos públicos.
 

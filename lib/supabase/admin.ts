@@ -13,6 +13,7 @@ export function createAdminSupabaseClient() {
     environment.SUPABASE_ADMIN_KEY,
     {
       auth: {
+        flowType: "implicit",
         autoRefreshToken: false,
         detectSessionInUrl: false,
         persistSession: false,

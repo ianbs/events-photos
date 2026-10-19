@@ -31,7 +31,7 @@ export default async function AdminLoginPage({ searchParams }: AdminLoginPagePro
         </p>
         <h1 className="mt-2 text-3xl font-semibold">Entrar</h1>
         <p className="mt-3 text-sm text-slate-600">
-          Use o usuário criado manualmente no Supabase Auth.
+          Entre com a conta liberada pelo administrador do sistema.
         </p>
 
         {errorMessage ? (

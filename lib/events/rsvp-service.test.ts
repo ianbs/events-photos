@@ -17,7 +17,7 @@ const input = { credentials, name: "  Ana  ", attending: true, companions: 2 };
 function client(result: unknown, maxCompanions: number | null = null) {
   resolveRsvpIdentity.mockResolvedValue({ ...guest, companionLimit: maxCompanions ?? 10 });
   const query = {
-    select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), ilike: vi.fn().mockReturnThis(),
     upsert: vi.fn().mockReturnThis(), order: vi.fn().mockReturnThis(),
     range: vi.fn().mockResolvedValue(result),
     maybeSingle: vi.fn().mockResolvedValue(result), single: vi.fn().mockResolvedValue(result),
@@ -238,5 +238,40 @@ describe("event-wide RSVP summary", () => {
   it("reports query failures without displaying misleading zero counts", async () => {
     setupCounts({ pending: 40, confirmed: 50, declined: 10 }, { fail: true });
     await expect(readAdminRsvpSummary(eventId)).rejects.toMatchObject({ status: 503 });
+  });
+});
+
+describe("RSVP response filters", () => {
+  const eventId = "11111111-1111-4111-8111-111111111111";
+  beforeEach(() => { vi.clearAllMocks(); requireAdmin.mockResolvedValue({ userId: "admin" }); });
+
+  it("applies search and status before pagination and keeps the event scope", async () => {
+    const query = client({ data: [], error: null, count: 0 });
+    await listAdminRsvps(eventId, 2, { q: "  100%_Ana  ", status: "confirmed", sort: "name" });
+    expect(query.eq.mock.calls).toEqual([["event_id", eventId], ["attending", true]]);
+    expect(query.ilike).toHaveBeenCalledWith("name", "%100\\%\\_Ana%");
+    expect(query.order.mock.calls).toEqual([["name", { ascending: true }], ["guest_id"]]);
+    expect(query.range).toHaveBeenCalledWith(50, 99);
+    expect(query.ilike.mock.invocationCallOrder[0]).toBeLessThan(query.range.mock.invocationCallOrder[0]);
+  });
+
+  it("filters refusals and can show the oldest updates first", async () => {
+    const query = client({ data: [], error: null, count: 0 });
+    await listAdminRsvps(eventId, 1, { status: "declined", sort: "oldest" });
+    expect(query.eq).toHaveBeenCalledWith("attending", false);
+    expect(query.order).toHaveBeenCalledWith("updated_at", { ascending: true });
+    expect(query.ilike).not.toHaveBeenCalled();
+  });
+
+  it("does not narrow attendance for the default list", async () => {
+    const query = client({ data: [], error: null, count: 0 });
+    await listAdminRsvps(eventId, 1);
+    expect(query.eq.mock.calls).toEqual([["event_id", eventId]]);
+    expect(query.order).toHaveBeenCalledWith("updated_at", { ascending: false });
+  });
+
+  it("rejects unsupported filters before querying data", async () => {
+    await expect(listAdminRsvps(eventId, 1, { status: "pending" })).rejects.toMatchObject({ status: 400 });
+    expect(createAdminSupabaseClient).not.toHaveBeenCalled();
   });
 });

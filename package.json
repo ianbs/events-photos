@@ -16,7 +16,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "admin:bootstrap": "node --env-file=.env.local scripts/bootstrap-super-admin.mjs",
+    "supabase:smtp:configure": "node --env-file=.env.local --env-file=.env.smtp.local scripts/configure-auth-email.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1127.0",

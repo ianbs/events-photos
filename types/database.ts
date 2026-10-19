@@ -17,157 +17,150 @@ export type Database = {
       admin_users: {
         Row: {
           created_at: string
+          is_active: boolean
+          role: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          is_active?: boolean
+          role?: string
           user_id: string
         }
         Update: {
           created_at?: string
+          is_active?: boolean
+          role?: string
           user_id?: string
         }
         Relationships: []
       }
-      events: {
+      event_rsvp_guest_batches: {
         Row: {
-          music_storage_path: string | null
-          instructions: string | null
-          whatsapp_message: string | null
-          accent_color: string
-          closing_message: string
-          cover_storage_path: string | null
+          batch_id: string
           created_at: string
-          event_date: string
-          id: string
-          is_active: boolean
-          location: string | null
-          maps_url: string | null
-          max_companions: number | null
-          logo_storage_path: string | null
-          name: string
-          organizer_contact: string | null
-          photos_available_until: string | null
-          primary_color: string
-          slug: string
+          event_id: string
+          input_hash: string
+          saved_count: number
         }
         Insert: {
-          music_storage_path?: string | null
-          accent_color?: string
-          instructions?: string | null
-          whatsapp_message?: string | null
-          closing_message?: string
-          cover_storage_path?: string | null
+          batch_id: string
           created_at?: string
-          event_date: string
-          id?: string
-          is_active?: boolean
-          location?: string | null
-          maps_url?: string | null
-          max_companions?: number | null
-          logo_storage_path?: string | null
-          name: string
-          organizer_contact?: string | null
-          photos_available_until?: string | null
-          primary_color?: string
-          slug: string
+          event_id: string
+          input_hash: string
+          saved_count: number
         }
         Update: {
-          music_storage_path?: string | null
-          accent_color?: string
-          instructions?: string | null
-          whatsapp_message?: string | null
-          closing_message?: string
-          cover_storage_path?: string | null
+          batch_id?: string
           created_at?: string
-          event_date?: string
-          id?: string
-          is_active?: boolean
-          location?: string | null
-          maps_url?: string | null
-          max_companions?: number | null
-          logo_storage_path?: string | null
-          name?: string
-          organizer_contact?: string | null
-          photos_available_until?: string | null
-          primary_color?: string
-          slug?: string
+          event_id?: string
+          input_hash?: string
+          saved_count?: number
         }
-        Relationships: []
-      }
-      event_rsvp_guest_batches: {
-        Row: { event_id: string; batch_id: string; input_hash: string; saved_count: number; created_at: string }
-        Insert: { event_id: string; batch_id: string; input_hash: string; saved_count: number; created_at?: string }
-        Update: { event_id?: string; batch_id?: string; input_hash?: string; saved_count?: number; created_at?: string }
         Relationships: [
-          { foreignKeyName: "event_rsvp_guest_batches_event_id_fkey"; columns: ["event_id"]; isOneToOne: false; referencedRelation: "events"; referencedColumns: ["id"] },
+          {
+            foreignKeyName: "event_rsvp_guest_batches_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "event_admin_summaries"
+            referencedColumns: ["event_id"]
+          },
+          {
+            foreignKeyName: "event_rsvp_guest_batches_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
         ]
       }
       event_rsvp_identities: {
         Row: {
-          max_companions: number | null
-          phone: string | null
-          invitation_code: string | null
+          created_at: string
+          email: string | null
           event_id: string
           guest_id: string
-          name: string
-          email: string | null
+          invitation_code: string | null
           invitation_hash: string | null
           invitation_revoked_at: string | null
-          created_at: string
+          max_companions: number | null
+          name: string
+          phone: string | null
         }
         Insert: {
-          phone?: string | null
-          max_companions?: number | null
-          invitation_code?: string | null
+          created_at?: string
+          email?: string | null
           event_id: string
           guest_id: string
-          name?: string
-          email?: string | null
+          invitation_code?: string | null
           invitation_hash?: string | null
           invitation_revoked_at?: string | null
-          created_at?: string
+          max_companions?: number | null
+          name?: string
+          phone?: string | null
         }
         Update: {
-          phone?: string | null
-          max_companions?: number | null
-          invitation_code?: string | null
+          created_at?: string
+          email?: string | null
           event_id?: string
           guest_id?: string
-          name?: string
-          email?: string | null
+          invitation_code?: string | null
           invitation_hash?: string | null
           invitation_revoked_at?: string | null
-          created_at?: string
+          max_companions?: number | null
+          name?: string
+          phone?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "event_rsvp_identities_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "event_admin_summaries"
+            referencedColumns: ["event_id"]
+          },
+          {
+            foreignKeyName: "event_rsvp_identities_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_rsvp_identities_event_id_guest_id_fkey"
+            columns: ["event_id", "guest_id"]
+            isOneToOne: true
+            referencedRelation: "guests"
+            referencedColumns: ["event_id", "id"]
+          },
+        ]
       }
       event_rsvps: {
         Row: {
+          attending: boolean
           companion_names: string[]
+          companions: number
           event_id: string
           guest_id: string
           name: string
-          attending: boolean
-          companions: number
           updated_at: string
         }
         Insert: {
-          event_id: string
-          guest_id: string
-          name: string
           attending: boolean
           companion_names?: string[]
           companions?: number
+          event_id: string
+          guest_id: string
+          name: string
           updated_at?: string
         }
         Update: {
-          event_id?: string
-          guest_id?: string
-          name?: string
           attending?: boolean
           companion_names?: string[]
           companions?: number
+          event_id?: string
+          guest_id?: string
+          name?: string
           updated_at?: string
         }
         Relationships: [
@@ -179,6 +172,72 @@ export type Database = {
             referencedColumns: ["event_id", "id"]
           },
         ]
+      }
+      events: {
+        Row: {
+          accent_color: string
+          closing_message: string
+          cover_storage_path: string | null
+          created_at: string
+          event_date: string
+          id: string
+          instructions: string | null
+          is_active: boolean
+          location: string | null
+          logo_storage_path: string | null
+          maps_url: string | null
+          max_companions: number | null
+          music_storage_path: string | null
+          name: string
+          organizer_contact: string | null
+          photos_available_until: string | null
+          primary_color: string
+          slug: string
+          whatsapp_message: string | null
+        }
+        Insert: {
+          accent_color?: string
+          closing_message?: string
+          cover_storage_path?: string | null
+          created_at?: string
+          event_date: string
+          id?: string
+          instructions?: string | null
+          is_active?: boolean
+          location?: string | null
+          logo_storage_path?: string | null
+          maps_url?: string | null
+          max_companions?: number | null
+          music_storage_path?: string | null
+          name: string
+          organizer_contact?: string | null
+          photos_available_until?: string | null
+          primary_color?: string
+          slug: string
+          whatsapp_message?: string | null
+        }
+        Update: {
+          accent_color?: string
+          closing_message?: string
+          cover_storage_path?: string | null
+          created_at?: string
+          event_date?: string
+          id?: string
+          instructions?: string | null
+          is_active?: boolean
+          location?: string | null
+          logo_storage_path?: string | null
+          maps_url?: string | null
+          max_companions?: number | null
+          music_storage_path?: string | null
+          name?: string
+          organizer_contact?: string | null
+          photos_available_until?: string | null
+          primary_color?: string
+          slug?: string
+          whatsapp_message?: string | null
+        }
+        Relationships: []
       }
       guests: {
         Row: {
@@ -200,6 +259,13 @@ export type Database = {
           id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "guests_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "event_admin_summaries"
+            referencedColumns: ["event_id"]
+          },
           {
             foreignKeyName: "guests_event_id_fkey"
             columns: ["event_id"]
@@ -255,6 +321,13 @@ export type Database = {
             foreignKeyName: "photos_event_id_fkey"
             columns: ["event_id"]
             isOneToOne: false
+            referencedRelation: "event_admin_summaries"
+            referencedColumns: ["event_id"]
+          },
+          {
+            foreignKeyName: "photos_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
             referencedRelation: "events"
             referencedColumns: ["id"]
           },
@@ -270,33 +343,60 @@ export type Database = {
           photo_count: number | null
           storage_bytes: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "events_pkey"
-            columns: ["event_id"]
-            isOneToOne: false
-            referencedRelation: "events"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Functions: {
+      create_rsvp_guest: {
+        Args: {
+          p_code: string
+          p_email?: string
+          p_event_id: string
+          p_max_companions?: number
+          p_name: string
+          p_phone?: string
+        }
+        Returns: string
+      }
+      create_rsvp_guest_batch: {
+        Args: {
+          p_batch_id: string
+          p_event_id: string
+          p_guests: Json
+          p_input_hash: string
+        }
+        Returns: number
+      }
       delete_rsvp_guest: {
         Args: { p_event_id: string; p_guest_id: string }
         Returns: boolean
       }
-      create_rsvp_guest_batch: {
-        Args: { p_event_id: string; p_batch_id: string; p_input_hash: string; p_guests: Json }
-        Returns: number
-      }
-      create_rsvp_guest: {
-        Args: { p_event_id: string; p_name: string; p_code: string; p_email?: string; p_phone?: string; p_max_companions?: number }
-        Returns: string
-      }
       ensure_rsvp_identity: {
-        Args: { p_event_id: string; p_email?: string; p_name?: string; p_invitation_hash?: string }
+        Args: {
+          p_email?: string
+          p_event_id: string
+          p_invitation_hash?: string
+          p_name?: string
+        }
         Returns: string
+      }
+      finish_admin_event_deletion: {
+        Args: {
+          p_actor_id: string
+          p_check_only?: boolean
+          p_confirmation: string
+          p_event_id: string
+        }
+        Returns: boolean
+      }
+      manage_admin_access: {
+        Args: {
+          p_actor_id: string
+          p_is_active: boolean
+          p_role: string
+          p_user_id: string
+        }
+        Returns: undefined
       }
     }
     Enums: {
@@ -316,12 +416,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -345,11 +445,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -370,11 +470,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -395,11 +495,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -412,11 +512,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

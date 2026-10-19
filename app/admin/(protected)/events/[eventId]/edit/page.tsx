@@ -72,6 +72,11 @@ export default async function EditAdminEventPage({
         initialLogoImageUrl={event.logoImageUrl}
         initialPrimaryColor={event.primaryColor}
       />
+      <section className="mt-8 rounded-2xl border border-red-200 bg-white p-5">
+        <h2 className="text-lg font-semibold text-slate-900">Excluir evento</h2>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">Remova definitivamente este evento e seus dados, incluindo fotos, convidados e confirmações de presença.</p>
+        <Link href={`/admin/events/${event.id}/delete`} className="mt-4 inline-flex min-h-11 items-center rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2">Excluir evento…</Link>
+      </section>
     </main>
   );
 }

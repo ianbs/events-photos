@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { apiErrorResponseSchema } from "@/lib/photos/upload-contract";
 import { createWhatsAppUrl, includeInvitationLink } from "@/lib/events/invitation-distribution";
 import { whatsappInvitationsResponseSchema } from "@/lib/events/rsvp-guest-contract";
 import { getRsvpCompanionLimit } from "@/lib/events/rsvp-companions";
+import { rsvpListHref, type RsvpListQuery } from "@/lib/events/admin-rsvp-list";
+import { RsvpStatusBadge } from "@/components/rsvp-status-badge";
 import { RsvpGuestBatchForm } from "@/components/rsvp-guest-batch-form";
 import { RsvpWhatsAppSender, type WhatsAppInvitation } from "@/components/rsvp-whatsapp-sender";
 
@@ -19,10 +21,13 @@ type Guest = {
 const responseSchema = z.object({ invitation: z.object({ code: z.string(), url: z.url(), message: z.string(), phone: z.string().nullable(), whatsappUrl: z.url().nullable() }).nullable() });
 type GeneratedInvitation = z.infer<typeof responseSchema>["invitation"];
 
-export function RsvpInvitations({ eventId, invitations, total, page, eventMaxCompanions }: {
-  eventId: string; invitations: Guest[]; total: number; page: number; eventMaxCompanions: number | null;
+export function RsvpInvitations({ eventId, invitations, total, page, eventMaxCompanions, listQuery }: {
+  eventId: string; invitations: Guest[]; total: number; page: number; eventMaxCompanions: number | null; listQuery: RsvpListQuery;
 }) {
   const router = useRouter();
+  const editingFormRef = useRef<HTMLFormElement>(null);
+  const generatedRef = useRef<HTMLDivElement>(null);
+  const deletionRef = useRef<HTMLDivElement>(null);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
   const [generated, setGenerated] = useState<GeneratedInvitation>(null);
@@ -32,6 +37,28 @@ export function RsvpInvitations({ eventId, invitations, total, page, eventMaxCom
   const [whatsappInvitations, setWhatsappInvitations] = useState<WhatsAppInvitation[] | null>(null);
   const exportable = invitations.filter((guest) => guest.phone && guest.hasRecoverableLink && !guest.invitation_revoked_at);
   const pendingInvitations = exportable.filter((guest) => !guest.response);
+
+  useEffect(() => {
+    if (!editing) return;
+    editingFormRef.current?.scrollIntoView({ block: "center" });
+    editingFormRef.current?.querySelector<HTMLInputElement>('input[name="name"]')?.focus({ preventScroll: true });
+  }, [editing]);
+
+  useEffect(() => {
+    if (!generatedRef.current) return;
+    generatedRef.current?.scrollIntoView({ block: "center" });
+    generatedRef.current?.querySelector<HTMLInputElement>("input")?.focus({ preventScroll: true });
+  }, [generated?.code]);
+
+  useEffect(() => {
+    if (!deleting) return;
+    deletionRef.current?.scrollIntoView({ block: "center" });
+    deletionRef.current?.focus({ preventScroll: true });
+  }, [deleting]);
+
+  function invitationPageHref(nextPage: number) {
+    return rsvpListHref(listQuery, { invitationPage: nextPage }, "guests");
+  }
 
   async function prepareWhatsApp(guestIds: string[]) {
     setPending(true); setMessage("");
@@ -98,17 +125,21 @@ export function RsvpInvitations({ eventId, invitations, total, page, eventMaxCom
   }
 
   return <section className="mt-8 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-    <h2 className="text-xl font-semibold">Cadastro de convidados</h2>
-    <p className="mt-2 text-sm text-slate-600">Adicione convidados pelo botão + e salve a lista inteira de uma vez. Os códigos e links individuais ficam disponíveis abaixo para consulta e compartilhamento.</p>
-    <RsvpGuestBatchForm eventId={eventId} eventMaxCompanions={eventMaxCompanions} disabled={pending} onSaved={() => {
+    <h2 className="text-xl font-semibold">Convidados e convites</h2>
+    <p className="mt-2 text-sm text-slate-600">Gerencie os contatos, os convites individuais e os convidados que ainda não responderam.</p>
+    <details open={total === 0 ? true : undefined} className="mt-5 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-1">
+      <summary className="w-fit cursor-pointer rounded-lg py-3 text-sm font-semibold text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600">Cadastrar novos convidados</summary>
+      <div className="pb-4"><p className="text-xs text-slate-500">Adicione uma ou mais pessoas e salve a lista de uma vez.</p>
+      <RsvpGuestBatchForm eventId={eventId} eventMaxCompanions={eventMaxCompanions} disabled={pending} onSaved={() => {
       setGenerated(null); setMessage(""); setSelected([]);
       if (page > 1) {
         const url = new URL(window.location.href);
         url.searchParams.delete("invitationPage");
         router.replace(`${url.pathname}${url.search}`);
       } else router.refresh();
-    }} />
-    {editing ? <form key={editing.guest_id} onSubmit={save} className="mt-6 grid gap-3 border-t border-slate-200 pt-5 sm:grid-cols-3">
+    }} /></div>
+    </details>
+    {editing ? <form ref={editingFormRef} key={editing.guest_id} onSubmit={save} className="mt-6 grid gap-3 border-t border-slate-200 pt-5 sm:grid-cols-3">
       <h3 className="font-semibold sm:col-span-3">Editar convidado</h3>
       <label className="text-sm">Nome<input name="name" required maxLength={200} disabled={pending} defaultValue={editing?.name ?? ""}
         className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" /></label>
@@ -129,7 +160,7 @@ export function RsvpInvitations({ eventId, invitations, total, page, eventMaxCom
       </div>
     </form> : null}
     {message ? <p role="status" className="mt-3 text-sm text-slate-700">{message}</p> : null}
-    {generated ? <div className="mt-4 space-y-3 rounded-xl bg-emerald-50 p-4 text-sm">
+    {generated ? <div ref={generatedRef} className="mt-4 space-y-3 rounded-xl bg-emerald-50 p-4 text-sm">
       <label className="block">Link individual<input readOnly value={generated.url} onFocus={(e) => e.target.select()}
         className="mt-1 w-full rounded-lg border border-emerald-200 bg-white p-2" /></label>
       <label className="block">Código<input readOnly value={generated.code} onFocus={(e) => e.target.select()}
@@ -145,7 +176,7 @@ export function RsvpInvitations({ eventId, invitations, total, page, eventMaxCom
         {generated.phone ? <a href={createWhatsAppUrl(generated.phone, includeInvitationLink(generated.message, generated.url), "web")!} target="_blank" rel="noopener noreferrer" className="font-medium text-emerald-800 underline">Abrir WhatsApp Web</a> : null}
       </div>
     </div> : null}
-    {deleting ? <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm">
+    {deleting ? <div ref={deletionRef} tabIndex={-1} role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm">
       <p className="font-semibold text-red-800">Excluir {deleting.name}?</p>
       <p className="mt-2 text-red-700">O cadastro, o convite e a resposta de presença serão removidos. O link deixará de funcionar. As fotos já enviadas serão preservadas.</p>
       <div className="mt-3 flex gap-4">
@@ -169,34 +200,42 @@ export function RsvpInvitations({ eventId, invitations, total, page, eventMaxCom
           <th scope="col" className="p-3"><input type="checkbox" aria-label="Selecionar convidados com WhatsApp e convite ativo nesta página" disabled={pending || !exportable.length}
             checked={exportable.length > 0 && exportable.every((guest) => selected.includes(guest.guest_id))}
             onChange={(e) => setSelected(e.target.checked ? exportable.map((guest) => guest.guest_id) : [])} /></th>
-          <th scope="col" className="p-3">Convidado</th><th scope="col" className="p-3">Contato</th><th scope="col" className="p-3">Limite de acompanhantes</th><th scope="col" className="p-3">Presença</th><th scope="col" className="p-3">Convite</th><th scope="col" className="p-3">Ações</th>
+          <th scope="col" className="p-3">Convidado e contato</th><th scope="col" className="p-3">Presença</th><th scope="col" className="p-3">Convite</th><th scope="col" className="p-3">Ações</th>
         </tr></thead>
-        <tbody>{invitations.map((guest) => <tr key={guest.guest_id} className="border-t border-slate-100">
+        <tbody>{invitations.map((guest) => <tr key={guest.guest_id} className="border-t border-slate-100 align-top hover:bg-slate-50/60">
           <td className="p-3"><input type="checkbox" aria-label={`Selecionar ${guest.name}`} checked={selected.includes(guest.guest_id)}
             disabled={pending || !guest.phone || !guest.hasRecoverableLink || Boolean(guest.invitation_revoked_at)}
-            onChange={(e) => setSelected(e.target.checked ? [...selected, guest.guest_id] : selected.filter((id) => id !== guest.guest_id))} /></td>
-          <td className="p-3 font-medium">{guest.name || "Convidado sem nome"}</td>
-          <td className="p-3"><p>{guest.phone ?? "Sem WhatsApp"}</p><p className="text-xs text-slate-500">{guest.email}</p></td>
-          <td className="p-3">{getRsvpCompanionLimit(eventMaxCompanions, guest.max_companions)}
-            <p className="text-xs text-slate-500">{guest.max_companions === null ? "Padrão do evento" : "Individual"}</p></td>
-          <td className="p-3">{guest.response ? guest.response.attending ? `Confirmada · ${guest.response.companions} acompanhante(s)` : "Não comparecerá" : "Pendente"}
-            {guest.response?.companion_names.length ? <p className="mt-1 whitespace-pre-line text-xs text-slate-500">{guest.response.companion_names.join("\n")}</p> : null}</td>
-          <td className="p-3">{guest.invitation_revoked_at ? "Revogado" : guest.hasRecoverableLink ? "Ativo" : "Precisa gerar código"}</td>
-          <td className="p-3"><div className="flex min-w-40 flex-wrap gap-x-3 gap-y-2">
-            {guest.phone && guest.hasRecoverableLink && !guest.invitation_revoked_at ? <button type="button" disabled={pending} onClick={() => void prepareWhatsApp([guest.guest_id])} className="rounded-lg bg-emerald-700 px-3 py-1.5 font-medium text-white disabled:opacity-40">WhatsApp</button> : null}
-            <button disabled={pending} onClick={() => { setEditing(guest); setGenerated(null); }} className="text-slate-700 underline">Editar</button>
-            {guest.hasRecoverableLink && !guest.invitation_revoked_at ? <button disabled={pending} onClick={() => void request("PATCH", { guestId: guest.guest_id, action: "retrieve" })} className="text-emerald-700 underline">Ver link e código</button> : null}
-            <button disabled={pending} onClick={() => void request("PATCH", { guestId: guest.guest_id, action: "renew" })} className="text-emerald-700 underline">{guest.hasRecoverableLink ? "Substituir código" : "Gerar código"}</button>
-            {!guest.invitation_revoked_at ? <button disabled={pending} onClick={() => void request("PATCH", { guestId: guest.guest_id, action: "revoke" })} className="text-red-700 underline">Revogar</button> : null}
-            <button type="button" disabled={pending} onClick={() => { setDeleting(guest); setGenerated(null); }} className="text-red-700 underline">Excluir convidado</button>
+            onChange={(e) => setSelected(e.target.checked ? [...selected, guest.guest_id] : selected.filter((id) => id !== guest.guest_id))} className="size-4 accent-emerald-700" /></td>
+          <td className="min-w-48 max-w-64 break-words p-3"><p className="font-medium">{guest.name || "Convidado sem nome"}</p>
+            <p className="mt-1 text-xs text-slate-500">{guest.phone ?? "Sem WhatsApp"}</p>{guest.email ? <p className="mt-1 break-all text-xs text-slate-500">{guest.email}</p> : null}</td>
+          <td className="min-w-44 p-3"><RsvpStatusBadge attending={guest.response?.attending ?? null} />
+            {guest.response?.attending ? <p className="mt-2 text-xs text-slate-500">{guest.response.companions} acompanhante(s)</p> : null}</td>
+          <td className="min-w-36 p-3">
+            <p className={`text-xs font-medium ${guest.invitation_revoked_at ? "text-red-700" : guest.hasRecoverableLink ? "text-emerald-800" : "text-amber-800"}`}>{guest.invitation_revoked_at ? "Revogado" : guest.hasRecoverableLink ? "Ativo" : "Precisa gerar código"}</p>
+            <p className="mt-2 text-xs text-slate-500">Até {getRsvpCompanionLimit(eventMaxCompanions, guest.max_companions)} acompanhante(s)</p>
+            <p className="mt-1 text-xs text-slate-400">{guest.max_companions === null ? "Limite padrão" : "Limite individual"}</p>
+          </td>
+          <td className="p-3"><div className="flex min-w-40 flex-col items-start gap-1">
+            {guest.phone && guest.hasRecoverableLink && !guest.invitation_revoked_at ? <button type="button" disabled={pending} onClick={() => void prepareWhatsApp([guest.guest_id])} className="min-h-11 rounded-lg bg-emerald-700 px-3 py-2 font-medium text-white hover:bg-emerald-800 disabled:opacity-40">WhatsApp</button> : null}
+            {guest.hasRecoverableLink && !guest.invitation_revoked_at ? <button type="button" disabled={pending} onClick={() => void request("PATCH", { guestId: guest.guest_id, action: "retrieve" })} className="min-h-11 py-2 text-sm font-medium text-emerald-800 underline underline-offset-2">Ver link e código</button> : null}
+            <details>
+              <summary className="cursor-pointer rounded-lg py-2 text-xs font-medium text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600">Mais ações<span className="sr-only"> para {guest.name}</span></summary>
+              <div className="mt-1 flex flex-col items-start gap-1 rounded-xl border border-slate-200 bg-white p-2">
+                <button type="button" disabled={pending} onClick={() => { setEditing(guest); setGenerated(null); }} className="min-h-11 px-2 text-slate-700 hover:underline">Editar convidado</button>
+                <button type="button" disabled={pending} onClick={() => void request("PATCH", { guestId: guest.guest_id, action: "renew" })} className="min-h-11 px-2 text-emerald-800 hover:underline">{guest.hasRecoverableLink ? "Substituir código" : "Gerar código"}</button>
+                {!guest.invitation_revoked_at ? <button type="button" disabled={pending} onClick={() => void request("PATCH", { guestId: guest.guest_id, action: "revoke" })} className="min-h-11 px-2 text-red-700 hover:underline">Revogar convite</button> : null}
+                <button type="button" disabled={pending} onClick={() => { setDeleting(guest); setGenerated(null); }} className="min-h-11 px-2 text-red-700 hover:underline">Excluir convidado</button>
+              </div>
+            </details>
           </div></td>
         </tr>)}</tbody>
       </table>
     </div>
     {total === 0 ? <p className="mt-4 text-sm text-slate-500">Nenhum convidado cadastrado.</p> : null}
-    <nav aria-label="Páginas de convidados" className="mt-4 flex gap-4 text-sm">
-      {page > 1 ? <a href={`?invitationPage=${page - 1}`} className="text-emerald-700 underline">Anteriores</a> : null}
-      {page * 50 < total ? <a href={`?invitationPage=${page + 1}`} className="text-emerald-700 underline">Próximos</a> : null}
+    <nav aria-label="Páginas de convidados" className="mt-4 flex items-center gap-4 text-sm">
+      {page > 1 ? <a href={invitationPageHref(page - 1)} className="text-emerald-700 underline">Anteriores</a> : null}
+      <span className="text-xs text-slate-500">Página {page} de {Math.max(1, Math.ceil(total / 50))}</span>
+      {page * 50 < total ? <a href={invitationPageHref(page + 1)} className="text-emerald-700 underline">Próximos</a> : null}
     </nav>
   </section>;
 }

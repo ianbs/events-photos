@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { requireAdmin } from "@/lib/auth/admin-authorization";
 import { infrastructureError, validationError } from "@/lib/errors/application-error";
+import { escapeRsvpSearch, rsvpListFiltersSchema } from "@/lib/events/admin-rsvp-list";
 import { rsvpInputSchema } from "@/lib/events/rsvp-contract";
 import { eventIdSchema } from "@/lib/events/event-validation";
 import { resolveRsvpIdentity } from "@/lib/events/rsvp-identity-service";
@@ -50,17 +51,23 @@ export async function saveGuestRsvp(slug: string, untrustedInput: unknown) {
   return data;
 }
 
-export async function listAdminRsvps(eventId: string, page: number) {
+export async function listAdminRsvps(eventId: string, page: number, filters: unknown = {}) {
   await requireAdmin();
   const input = z.object({ eventId: eventIdSchema, page: z.number().int().min(1).max(100000) }).safeParse({ eventId, page });
   if (!input.success) throw validationError("Evento ou página inválidos.");
+  const parsedFilters = rsvpListFiltersSchema.safeParse(filters);
+  if (!parsedFilters.success) throw validationError("Filtros de presença inválidos.");
+  const { q, status, sort } = parsedFilters.data;
   const pageSize = 50;
-  const { data, error, count } = await createAdminSupabaseClient()
+  let request = createAdminSupabaseClient()
     .from("event_rsvps")
     .select("guest_id,name,attending,companions,companion_names,updated_at", { count: "exact" })
-    .eq("event_id", eventId)
-    .order("updated_at", { ascending: false })
-    .order("guest_id")
+    .eq("event_id", eventId);
+  if (q) request = request.ilike("name", `%${escapeRsvpSearch(q)}%`);
+  if (status !== "all") request = request.eq("attending", status === "confirmed");
+  request = sort === "name" ? request.order("name", { ascending: true })
+    : request.order("updated_at", { ascending: sort === "oldest" });
+  const { data, error, count } = await request.order("guest_id")
     .range((page - 1) * pageSize, page * pageSize - 1);
   if (error) throw infrastructureError();
   return { responses: data ?? [], total: count ?? 0, pageSize };

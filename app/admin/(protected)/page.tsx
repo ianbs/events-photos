@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { AdminEventList } from "@/components/admin-event-list";
 import { AdminPhotoGrid } from "@/components/admin-photo-grid";
 import { getCurrentAdmin } from "@/lib/auth/admin-authorization";
 import { listAdminEventSummaries } from "@/lib/events/admin-event-service";
@@ -21,29 +21,6 @@ type AdminDashboardPageProps = {
     to?: string;
   }>;
 };
-
-function formatBytes(value: number): string {
-  if (value === 0) {
-    return "0 MB";
-  }
-
-  if (value >= 1024 ** 3) {
-    return `${(value / 1024 ** 3).toFixed(1)} GB`;
-  }
-
-  return `${(value / 1024 ** 2).toFixed(1)} MB`;
-}
-
-function formatLastUpload(value: string | null): string {
-  if (!value) {
-    return "Nenhum envio";
-  }
-
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
 
 function createPhotoPageHref(
   filters: ReturnType<typeof normalizeAdminPhotoFilters>,
@@ -79,6 +56,8 @@ export default async function AdminDashboardPage({
   const eventFeedback =
     rawFilters.status === "created"
       ? "Evento criado com sucesso."
+      : rawFilters.status === "deleted"
+        ? "Evento excluído com sucesso."
       : rawFilters.status === "updated"
         ? "Evento atualizado com sucesso."
         : null;
@@ -98,95 +77,33 @@ export default async function AdminDashboardPage({
         </p>
       ) : null}
 
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+      <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
         <div>
-          <p className="text-sm font-medium uppercase tracking-[0.16em] text-emerald-700">
-            Administração
-          </p>
-          <h1 className="mt-1 text-3xl font-semibold">Eventos e fotos</h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Visão geral</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">Eventos</h1>
+          <p className="mt-2 text-sm text-slate-500">Organize os convidados, acompanhe as presenças e reúna as fotos.</p>
         </div>
-        <div className="flex items-center gap-4">
-          <p className="text-sm text-slate-600">{totalPhotos} foto(s)</p>
-          <Link
-            href="/admin/events/new"
-            className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-800"
-          >
-            Novo evento
-          </Link>
-        </div>
+        <Link href="/admin/events/new" className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2">
+          <span aria-hidden="true" className="text-xl leading-none font-normal">+</span> Novo evento
+        </Link>
       </div>
 
-      {eventsWithQrCode.length > 0 ? (
-        <section className="mt-7 grid gap-4 lg:grid-cols-2">
-          {eventsWithQrCode.map((event) => (
-            <article
-              key={event.id}
-              className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200"
-            >
-              <div className="flex gap-4">
-                <Image
-                  src={event.qrCodeDataUrl}
-                  alt={`QR Code para ${event.name}`}
-                  width={128}
-                  height={128}
-                  unoptimized
-                  className="h-28 w-28 shrink-0 rounded-lg"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="truncate font-semibold">{event.name}</p>
-                    <span
-                      className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
-                        event.isActive
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-slate-100 text-slate-600"
-                      }`}
-                    >
-                      {event.isActive ? "Ativo" : "Encerrado"}
-                    </span>
-                  </div>
-                  <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                    <p><span className="font-semibold">{event.photoCount}</span> fotos</p>
-                    <p><span className="font-semibold">{event.guestCount}</span> dispositivos</p>
-                    <p>{formatBytes(event.storageBytes)}</p>
-                    <p className="truncate" title={formatLastUpload(event.lastPhotoAt)}>
-                      {formatLastUpload(event.lastPhotoAt)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              {event.location ? <p className="mt-3 text-sm text-slate-600">{event.location}</p> : null}
-              {event.maxCompanions !== null ? <p className="mt-2 text-sm text-slate-600">Até {event.maxCompanions} acompanhante(s) por convidado</p> : null}
-              <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-100 pt-4 text-sm">
-                <a href={event.eventUrl} target="_blank" rel="noreferrer" className="text-emerald-700 underline">
-                  Abrir evento
-                </a>
-                <Link href={`/admin/events/${event.id}/edit`} className="text-emerald-700 underline">
-                  Editar evento
-                </Link>
-                <Link href={`/e/${event.slug}/save-the-date`} target="_blank" rel="noreferrer" className="text-emerald-700 underline">
-                  Abrir save the date
-                </Link>
-                <Link href={`/admin/events/${event.id}/rsvps`} className="text-emerald-700 underline">
-                  Confirmações de presença
-                </Link>
-                <a href={event.qrCodeDataUrl} download={`qr-${event.slug}.png`} className="text-slate-700 underline">
-                  Baixar QR Code
-                </a>
-                {event.photoCount > 0 ? (
-                  <a href={`/api/admin/events/${event.id}/photos.zip`} className="font-medium text-emerald-700 underline">
-                    Baixar todas em ZIP
-                  </a>
-                ) : (
-                  <span className="text-slate-400">ZIP indisponível</span>
-                )}
-              </div>
-            </article>
-          ))}
-        </section>
-      ) : null}
+      <dl className="mt-7 grid grid-cols-3 divide-x divide-slate-200 rounded-2xl border border-slate-200 bg-white py-5">
+        {[
+          { label: "Total de eventos", value: events.length },
+          { label: "Eventos ativos", value: events.filter((event) => event.isActive).length },
+          { label: "Fotos recebidas", value: totalPhotos },
+        ].map((item) => (
+          <div key={item.label} className="px-3 sm:px-6">
+            <dt className="text-xs text-slate-500 sm:text-sm">{item.label}</dt>
+            <dd className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-900 tabular-nums">{item.value.toLocaleString("pt-BR")}</dd>
+          </div>
+        ))}
+      </dl>
 
-      <section className="mt-10">
+      <AdminEventList events={eventsWithQrCode} />
+
+      <section id="photos" className="mt-12 scroll-mt-6 border-t border-slate-200 pt-8">
         <div className="mb-5">
           <p className="text-sm font-medium uppercase tracking-[0.16em] text-emerald-700">
             Acervo
@@ -194,7 +111,7 @@ export default async function AdminDashboardPage({
           <h2 className="mt-1 text-2xl font-semibold">Fotos</h2>
         </div>
 
-        <form method="get" className="mb-6 grid gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:grid-cols-2 lg:grid-cols-5">
+        <form key={[filters.eventId, filters.fromDate, filters.toDate, filters.sort].join(":")} method="get" className="mb-6 grid gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:grid-cols-2 lg:grid-cols-5">
           <label className="block lg:col-span-2">
             <span className="text-xs font-medium text-slate-600">Evento</span>
             <select name="event" defaultValue={filters.eventId ?? ""} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm">

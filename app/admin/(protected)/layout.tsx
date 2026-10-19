@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { logoutAdmin } from "@/app/admin/actions";
@@ -21,11 +22,15 @@ export default async function ProtectedAdminLayout({ children }: { children: Rea
             <p className="font-semibold">Galeria do evento</p>
             <p className="text-xs text-slate-500">{admin.email}</p>
           </div>
-          <form action={logoutAdmin}>
-            <button type="submit" className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
-              Sair
-            </button>
-          </form>
+          <nav aria-label="Administração" className="flex flex-wrap items-center gap-3 text-sm">
+            <Link href="/admin" className="font-medium hover:underline">Eventos</Link>
+            {admin.role === "super_admin" ? <Link href="/admin/users" className="font-medium hover:underline">Usuários</Link> : null}
+            <form action={logoutAdmin}>
+              <button type="submit" className="rounded-lg border border-slate-300 px-4 py-2 text-sm">
+                Sair
+              </button>
+            </form>
+          </nav>
         </div>
       </header>
       {children}
