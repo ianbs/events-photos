@@ -29,11 +29,11 @@ function validateOwnedPath(eventId: string, path: string) {
 }
 
 export async function findEventDeletionSummary(untrustedId: string) {
-  await requireAdmin();
+  const actor = await requireAdmin();
   const eventId = validateId(untrustedId);
   const client = createAdminSupabaseClient();
   const { data: event, error } = await client.from("events")
-    .select("id,name,slug").eq("id", eventId).maybeSingle();
+    .select("id,name,slug").eq("id", eventId).eq("owner_id", actor.userId).maybeSingle();
   if (error) throw infrastructureError();
   if (!event) throw notFoundError("Evento não encontrado.");
   const [photos, guests, rsvps] = await Promise.all([
@@ -53,7 +53,7 @@ export async function deleteAdminEventBatch(untrustedId: string, untrustedInput:
   const client = createAdminSupabaseClient();
   const { data: event, error } = await client.from("events")
     .select("id,name,slug,cover_storage_path,logo_storage_path,music_storage_path")
-    .eq("id", eventId).maybeSingle();
+    .eq("id", eventId).eq("owner_id", actor.userId).maybeSingle();
   if (error) throw infrastructureError();
   // A lost response after final deletion can be safely retried.
   if (!event) return { deleted: true, removedPhotos: 0, slug: null };
@@ -72,7 +72,7 @@ export async function deleteAdminEventBatch(untrustedId: string, untrustedInput:
   let removedPhotos = 0;
   try {
     const { data: paused, error: pauseError } = await client.from("events").update({ is_active: false })
-      .eq("id", eventId).eq("name", input.data.confirmation).select("id").maybeSingle();
+      .eq("id", eventId).eq("owner_id", actor.userId).eq("name", input.data.confirmation).select("id").maybeSingle();
     if (pauseError) throw infrastructureError();
     if (!paused) throw conflictError("O evento foi alterado. Atualize a página antes de continuar.");
     const { data: photos, error: photoError } = await client.from("photos")
@@ -104,7 +104,7 @@ export async function deleteAdminEventBatch(untrustedId: string, untrustedInput:
       if (storageError) throw infrastructureError();
       const clearUpdate: Database["public"]["Tables"]["events"]["Update"] = { [column]: null };
       const { error: clearError } = await client.from("events").update(clearUpdate)
-        .eq("id", eventId).eq(column, path);
+        .eq("id", eventId).eq("owner_id", actor.userId).eq(column, path);
       if (clearError) throw infrastructureError();
     }
 

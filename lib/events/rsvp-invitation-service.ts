@@ -12,10 +12,10 @@ import { createInvitationCsv, createInvitationMessage, createWhatsAppUrl } from 
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 async function adminEvent(eventId: string) {
-  await requireAdmin();
+  const actor = await requireAdmin();
   if (!eventIdSchema.safeParse(eventId).success) throw validationError("Evento inválido.");
   const { data, error } = await createAdminSupabaseClient().from("events")
-    .select("id,name,slug,is_active,whatsapp_message").eq("id", eventId).maybeSingle();
+    .select("id,name,slug,is_active,whatsapp_message").eq("id", eventId).eq("owner_id", actor.userId).maybeSingle();
   if (error) throw infrastructureError();
   if (!data) throw notFoundError("Evento não encontrado.");
   return data;

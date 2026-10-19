@@ -47,6 +47,7 @@ function validateEventId(untrustedEventId: string): string {
 
 async function findStoredBranding(
   eventId: string,
+  ownerId: string,
 ): Promise<StoredEventBranding> {
   const supabase = createAdminSupabaseClient();
   const { data, error } = await supabase
@@ -55,6 +56,7 @@ async function findStoredBranding(
       "primary_color,accent_color,cover_storage_path,logo_storage_path",
     )
     .eq("id", eventId)
+    .eq("owner_id", ownerId)
     .maybeSingle();
 
   if (error) {
@@ -72,7 +74,7 @@ export async function initializeEventBrandingUpload(
   untrustedEventId: string,
   untrustedInput: unknown,
 ) {
-  await requireAdmin();
+  const actor = await requireAdmin();
   const eventId = validateEventId(untrustedEventId);
   const input = brandingUploadInputSchema.safeParse(untrustedInput);
 
@@ -90,7 +92,7 @@ export async function initializeEventBrandingUpload(
     throw validationError(validation.message);
   }
 
-  await findStoredBranding(eventId);
+  await findStoredBranding(eventId, actor.userId);
   return initializeBrandingStorageUpload(
     eventId,
     input.data.assetType,
@@ -102,7 +104,7 @@ export async function finalizeEventBranding(
   untrustedEventId: string,
   untrustedInput: unknown,
 ): Promise<void> {
-  await requireAdmin();
+  const actor = await requireAdmin();
   const eventId = validateEventId(untrustedEventId);
   const input = finalizeEventBrandingSchema.safeParse(untrustedInput);
 
@@ -118,11 +120,14 @@ export async function finalizeEventBranding(
     throw validationError("Envie no máximo uma imagem de cada tipo.");
   }
 
+  const current = await findStoredBranding(eventId, actor.userId);
+  // Validate every path before failure cleanup can delete any uploaded object.
+  for (const asset of input.data.uploadedAssets) {
+    if (!isBrandingImageMimeType(asset.mimeType)) throw validationError("Tipo de imagem inválido.");
+    validateBrandingAssetPath(eventId, asset, asset.mimeType);
+  }
   const newPaths = input.data.uploadedAssets.map((asset) => asset.path);
-  let current: StoredEventBranding;
-
   try {
-    current = await findStoredBranding(eventId);
     for (const asset of input.data.uploadedAssets) {
       await verifyBrandingAsset(eventId, asset);
     }
@@ -155,6 +160,7 @@ export async function finalizeEventBranding(
     .from("events")
     .update(update)
     .eq("id", eventId)
+    .eq("owner_id", actor.userId)
     .select("id")
     .maybeSingle();
 
@@ -177,7 +183,7 @@ export async function cleanupEventBrandingUpload(
   untrustedEventId: string,
   untrustedAsset: unknown,
 ): Promise<void> {
-  await requireAdmin();
+  const actor = await requireAdmin();
   const eventId = validateEventId(untrustedEventId);
   const asset = cleanupBrandingUploadSchema.safeParse(untrustedAsset);
 
@@ -185,6 +191,7 @@ export async function cleanupEventBrandingUpload(
     throw validationError("Dados de limpeza inválidos.");
   }
 
+  await findStoredBranding(eventId, actor.userId);
   validateBrandingAssetPath(eventId, asset.data, asset.data.mimeType);
   await removeBrandingObjectsBestEffort([asset.data.path]);
 }

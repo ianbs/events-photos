@@ -393,3 +393,18 @@ pnpm supabase db lint --local
 ```
 
 Os dois últimos comandos exigem Docker e a stack Supabase local iniciada.
+
+## Isolamento dos eventos por usuário
+
+O servidor grava o criador em `events.owner_id` usando a identidade autenticada,
+sem aceitar esse campo do formulário. Administradores e superadministradores só
+listam e gerenciam seus próprios eventos, fotos, ZIPs, convidados e presenças.
+A gestão de contas continua exclusiva do superadministrador. Os links públicos
+para convidados mantêm a validação de sessão/convite já existente.
+
+A migration `20261019203503_add_event_ownership.sql` vincula os eventos anteriores
+à conta `ianbarbosasantos@gmail.com`, conforme solicitado. Deve ser aplicada antes
+do deploy da aplicação. O banco continua bloqueando acesso direto de
+`anon`/`authenticated`; as consultas privilegiadas do servidor filtram o dono.
+A exclusão de uma conta deixa seus eventos sem dono, sem apagar arquivos ou
+transferi-los automaticamente; eventos sem dono ficam fora do painel.

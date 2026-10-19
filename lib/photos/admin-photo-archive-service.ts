@@ -82,7 +82,7 @@ async function downloadPrivatePhoto(
 export async function createEventPhotoArchive(
   untrustedEventId: string,
 ): Promise<AdminPhotoArchive> {
-  await requireAdmin();
+  const actor = await requireAdmin();
   const parsedEventId = eventIdSchema.safeParse(untrustedEventId);
 
   if (!parsedEventId.success) {
@@ -94,6 +94,7 @@ export async function createEventPhotoArchive(
     .from("events")
     .select("id,slug")
     .eq("id", parsedEventId.data)
+    .eq("owner_id", actor.userId)
     .maybeSingle();
 
   if (eventError) {
@@ -144,7 +145,7 @@ export async function createEventPhotoArchive(
 export async function createSelectedPhotoArchive(
   untrustedPhotoIds: unknown,
 ): Promise<AdminPhotoArchive> {
-  await requireAdmin();
+  const actor = await requireAdmin();
   const parsedPhotoIds = selectedPhotoIdsSchema.safeParse(untrustedPhotoIds);
 
   if (!parsedPhotoIds.success) {
@@ -154,8 +155,9 @@ export async function createSelectedPhotoArchive(
   const supabase = createAdminSupabaseClient();
   const { data, error } = await supabase
     .from("photos")
-    .select("id,storage_path,original_filename,file_size,created_at")
+    .select("id,storage_path,original_filename,file_size,created_at,events!inner(owner_id)")
     .in("id", parsedPhotoIds.data)
+    .eq("events.owner_id", actor.userId)
     .order("created_at", { ascending: false });
 
   if (error) {

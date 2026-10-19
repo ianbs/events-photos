@@ -136,13 +136,13 @@ function throwEventWriteError(error: { code?: string } | null): void {
 export async function createAdminEvent(
   untrustedInput: unknown,
 ): Promise<AdminEvent> {
-  await requireAdmin();
+  const actor = await requireAdmin();
   const input = validateEventInput(untrustedInput);
 
   const supabase = createAdminSupabaseClient();
   const { data, error } = await supabase
     .from("events")
-    .insert(toStoredEventInput(input))
+    .insert({ ...toStoredEventInput(input), owner_id: actor.userId })
     .select(eventColumns)
     .single();
 
@@ -158,7 +158,7 @@ export async function createAdminEvent(
 export async function findAdminEventById(
   untrustedEventId: string,
 ): Promise<EditableAdminEvent> {
-  await requireAdmin();
+  const actor = await requireAdmin();
   const eventId = validateEventId(untrustedEventId);
   const supabase = createAdminSupabaseClient();
   const { data, error } = await supabase
@@ -167,6 +167,7 @@ export async function findAdminEventById(
       `${eventColumns},primary_color,accent_color,cover_storage_path,logo_storage_path,music_storage_path`,
     )
     .eq("id", eventId)
+    .eq("owner_id", actor.userId)
     .maybeSingle();
 
   if (error) {
@@ -203,7 +204,7 @@ export async function updateAdminEvent(
   untrustedEventId: string,
   untrustedInput: unknown,
 ): Promise<AdminEvent> {
-  await requireAdmin();
+  const actor = await requireAdmin();
   const eventId = validateEventId(untrustedEventId);
   const input = validateEventInput(untrustedInput);
 
@@ -212,6 +213,7 @@ export async function updateAdminEvent(
     .from("events")
     .update(toStoredEventInput(input))
     .eq("id", eventId)
+    .eq("owner_id", actor.userId)
     .select(eventColumns)
     .maybeSingle();
 
@@ -225,11 +227,12 @@ export async function updateAdminEvent(
 }
 
 export async function listAdminEvents(): Promise<AdminEvent[]> {
-  await requireAdmin();
+  const actor = await requireAdmin();
   const supabase = createAdminSupabaseClient();
   const { data, error } = await supabase
     .from("events")
     .select(eventColumns)
+    .eq("owner_id", actor.userId)
     .order("event_date", { ascending: false });
 
   if (error) {
@@ -240,22 +243,20 @@ export async function listAdminEvents(): Promise<AdminEvent[]> {
 }
 
 export async function listAdminEventSummaries(): Promise<AdminEventSummary[]> {
-  await requireAdmin();
+  const actor = await requireAdmin();
   const supabase = createAdminSupabaseClient();
-  const [{ data: events, error: eventsError }, { data: summaries, error: summariesError }] =
-    await Promise.all([
-      supabase
-        .from("events")
-        .select(eventColumns)
-        .order("event_date", { ascending: false }),
-      supabase.from("event_admin_summaries").select(
-        "event_id,photo_count,guest_count,storage_bytes,last_photo_at",
-      ),
-    ]);
-
-  if (eventsError || summariesError) {
-    throw infrastructureError();
-  }
+  const { data: events, error: eventsError } = await supabase
+    .from("events")
+    .select(eventColumns)
+    .eq("owner_id", actor.userId)
+    .order("event_date", { ascending: false });
+  if (eventsError) throw infrastructureError();
+  if (!events?.length) return [];
+  const { data: summaries, error: summariesError } = await supabase
+    .from("event_admin_summaries")
+    .select("event_id,photo_count,guest_count,storage_bytes,last_photo_at")
+    .in("event_id", events.map((event) => event.id));
+  if (summariesError) throw infrastructureError();
 
   const summariesByEventId = new Map(
     (summaries ?? []).flatMap((summary) =>

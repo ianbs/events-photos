@@ -26,7 +26,7 @@ function createInsertClient(result: unknown) {
 function createUpdateClient(result: unknown) {
   const maybeSingle = vi.fn().mockResolvedValue(result);
   const select = vi.fn(() => ({ maybeSingle }));
-  const eq = vi.fn(() => ({ select }));
+  const eq = vi.fn(() => ({ eq, select }));
   const update = vi.fn(() => ({ eq }));
   const from = vi.fn(() => ({ update }));
 
@@ -80,6 +80,7 @@ describe("admin event creation", () => {
       slug: "evento-de-teste",
     });
     expect(insert).toHaveBeenCalledWith({
+      owner_id: "admin-id",
       instructions: null,
       whatsapp_message: null,
       closing_message: "Obrigado por compartilhar este momento conosco!",

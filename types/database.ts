@@ -190,6 +190,7 @@ export type Database = {
           music_storage_path: string | null
           name: string
           organizer_contact: string | null
+          owner_id: string | null
           photos_available_until: string | null
           primary_color: string
           slug: string
@@ -211,6 +212,7 @@ export type Database = {
           music_storage_path?: string | null
           name: string
           organizer_contact?: string | null
+          owner_id?: string | null
           photos_available_until?: string | null
           primary_color?: string
           slug: string
@@ -232,6 +234,7 @@ export type Database = {
           music_storage_path?: string | null
           name?: string
           organizer_contact?: string | null
+          owner_id?: string | null
           photos_available_until?: string | null
           primary_color?: string
           slug?: string

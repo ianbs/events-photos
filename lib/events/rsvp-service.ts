@@ -2,6 +2,7 @@ import "server-only";
 
 import { z } from "zod";
 
+import { requireOwnedAdminEvent } from "@/lib/events/admin-event-ownership";
 import { requireAdmin } from "@/lib/auth/admin-authorization";
 import { infrastructureError, validationError } from "@/lib/errors/application-error";
 import { escapeRsvpSearch, rsvpListFiltersSchema } from "@/lib/events/admin-rsvp-list";
@@ -57,6 +58,7 @@ export async function listAdminRsvps(eventId: string, page: number, filters: unk
   if (!input.success) throw validationError("Evento ou página inválidos.");
   const parsedFilters = rsvpListFiltersSchema.safeParse(filters);
   if (!parsedFilters.success) throw validationError("Filtros de presença inválidos.");
+  await requireOwnedAdminEvent(eventId);
   const { q, status, sort } = parsedFilters.data;
   const pageSize = 50;
   let request = createAdminSupabaseClient()
@@ -76,6 +78,7 @@ export async function listAdminRsvps(eventId: string, page: number, filters: unk
 export async function readAdminRsvpSummary(eventId: string) {
   await requireAdmin();
   if (!eventIdSchema.safeParse(eventId).success) throw validationError("Evento inválido.");
+  await requireOwnedAdminEvent(eventId);
   const supabase = createAdminSupabaseClient();
   const [pending, confirmed, declined] = await Promise.all([
     supabase.from("guests")

@@ -165,6 +165,11 @@ describe("event-wide RSVP summary", () => {
   } = {}) {
     const fetchQuery = vi.fn(async (input: RequestInfo | URL, options?: RequestInit) => {
       const url = new URL(String(input));
+      if (url.pathname.endsWith("events")) {
+        expect(url.searchParams.get("owner_id")).toBe("eq.admin");
+        expect(url.searchParams.get("id")).toBe(`eq.${eventId}`);
+        return new Response(JSON.stringify({ id: eventId }), { headers: { "content-type": "application/json" } });
+      }
       expect(url.searchParams.get("event_id")).toBe(`eq.${eventId}`);
       if (url.pathname.endsWith("guests")) {
         expect(url.searchParams.get("select")).toBe("id,event_rsvp_identities!inner(guest_id),event_rsvps()");
@@ -209,7 +214,7 @@ describe("event-wide RSVP summary", () => {
     await expect(readAdminRsvpSummary(eventId)).resolves.toEqual({
       total: 4900, confirmed: 4000, confirmedGuests: 1600, companions: 2400, declined: 300, pending: 600,
     });
-    expect(query).toHaveBeenCalledTimes(6);
+    expect(query).toHaveBeenCalledTimes(7);
   });
   it("shows zero counts for an event without guests", async () => {
     setupCounts({ pending: 0, confirmed: 0, declined: 0 });

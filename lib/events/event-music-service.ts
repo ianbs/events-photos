@@ -13,35 +13,35 @@ function validateEventId(value: string) {
   return result.data;
 }
 
-async function findMusic(eventId: string) {
+async function findMusic(eventId: string, ownerId: string) {
   const { data, error } = await createAdminSupabaseClient().from("events")
-    .select("music_storage_path,slug").eq("id", eventId).maybeSingle();
+    .select("music_storage_path,slug").eq("id", eventId).eq("owner_id", ownerId).maybeSingle();
   if (error) throw infrastructureError();
   if (!data) throw notFoundError("Evento não encontrado.");
   return data;
 }
 
 export async function initializeEventMusicUpload(untrustedEventId: string, untrustedInput: unknown) {
-  await requireAdmin();
+  const actor = await requireAdmin();
   const eventId = validateEventId(untrustedEventId);
   if (!musicUploadInputSchema.safeParse(untrustedInput).success) {
     throw validationError("Envie um arquivo MP3 de até 15 MB.");
   }
-  await findMusic(eventId);
+  await findMusic(eventId, actor.userId);
   return initializeMusicStorageUpload(eventId);
 }
 
 export async function saveEventMusic(untrustedEventId: string, untrustedInput: unknown) {
-  await requireAdmin();
+  const actor = await requireAdmin();
   const eventId = validateEventId(untrustedEventId);
   const input = saveEventMusicSchema.safeParse(untrustedInput);
   if (!input.success) throw validationError("Selecione uma música ou marque a opção de remover.");
-  const current = await findMusic(eventId);
+  const current = await findMusic(eventId, actor.userId);
   const asset = input.data.uploadedMusic;
   if (asset) await verifyUploadedMusic(eventId, asset);
   const newPath = asset?.path ?? null;
   const supabase = createAdminSupabaseClient();
-  let query = supabase.from("events").update({ music_storage_path: newPath }).eq("id", eventId);
+  let query = supabase.from("events").update({ music_storage_path: newPath }).eq("id", eventId).eq("owner_id", actor.userId);
   // Avoid overwriting a concurrent change during verification.
   query = current.music_storage_path === null
     ? query.is("music_storage_path", null)
@@ -56,12 +56,12 @@ export async function saveEventMusic(untrustedEventId: string, untrustedInput: u
 }
 
 export async function cleanupEventMusicUpload(untrustedEventId: string, untrustedInput: unknown) {
-  await requireAdmin();
+  const actor = await requireAdmin();
   const eventId = validateEventId(untrustedEventId);
   const input = uploadedMusicSchema.safeParse(untrustedInput);
   if (!input.success) throw validationError("Dados de limpeza inválidos.");
   validateMusicPath(eventId, input.data.path);
-  const current = await findMusic(eventId);
+  const current = await findMusic(eventId, actor.userId);
   // A lost response after a successful save must never delete the active music.
   if (current.music_storage_path !== input.data.path) {
     await removeMusicObjectBestEffort(input.data.path);

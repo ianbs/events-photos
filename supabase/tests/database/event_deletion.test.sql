@@ -8,6 +8,8 @@ insert into public.events (id, name, slug, event_date, is_active) values
   ('e2000000-0000-4000-8000-000000000001', 'Excluir teste', 'delete-test-active', '2026-10-18', true),
   ('e2000000-0000-4000-8000-000000000002', 'Excluir teste', 'delete-test-photos', '2026-10-18', false),
   ('e2000000-0000-4000-8000-000000000003', 'Excluir teste', 'delete-test-branding', '2026-10-18', false);
+update public.events set owner_id = 'e1000000-0000-4000-8000-000000000001'
+where id in ('e2000000-0000-4000-8000-000000000001','e2000000-0000-4000-8000-000000000002','e2000000-0000-4000-8000-000000000003');
 insert into public.guests (event_id, id) values ('e2000000-0000-4000-8000-000000000002', 'e3000000-0000-4000-8000-000000000001');
 insert into public.photos (event_id,guest_id,storage_path,original_filename,mime_type,file_size) values
   ('e2000000-0000-4000-8000-000000000002','e3000000-0000-4000-8000-000000000001','deletion-test/file.png','file.png','image/png',10);

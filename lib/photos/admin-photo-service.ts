@@ -106,24 +106,26 @@ function getExclusiveEndDate(value: string): string {
 export async function listAdminPhotos(
   filters: AdminPhotoFilters = normalizeAdminPhotoFilters({}),
 ): Promise<AdminPhotoPage> {
-  await requireAdmin();
+  const actor = await requireAdmin();
   const supabase = createAdminSupabaseClient();
   const { data: events, error: eventsError } = await supabase
     .from("events")
-    .select("id,name,slug");
+    .select("id,name,slug").eq("owner_id", actor.userId);
   const ascending = filters.sort === "oldest";
   const cursor = decodePhotoCursor(filters.cursor);
   let query = supabase
     .from("photos")
     .select(
-      "id,event_id,storage_path,storage_provider,original_filename,mime_type,file_size,created_at",
+      "id,event_id,storage_path,storage_provider,original_filename,mime_type,file_size,created_at,events!inner(owner_id)",
     )
+    .eq("events.owner_id", actor.userId)
     .order("created_at", { ascending })
     .order("id", { ascending })
     .limit(ADMIN_PHOTO_PAGE_SIZE + 1);
   let countQuery = supabase
     .from("photos")
-    .select("id", { count: "exact", head: true });
+    .select("id,events!inner(owner_id)", { count: "exact", head: true })
+    .eq("events.owner_id", actor.userId);
 
   if (filters.eventId) {
     query = query.eq("event_id", filters.eventId);
@@ -219,12 +221,13 @@ export async function createAdminPhotoUrl(
   untrustedPhotoId: string,
   download: boolean,
 ): Promise<string> {
-  await requireAdmin();
+  const actor = await requireAdmin();
   const photoId = validatePhotoId(untrustedPhotoId);
   const supabase = createAdminSupabaseClient();
   const { data: photo, error: photoError } = await supabase
     .from("photos")
-    .select("storage_path,storage_provider,original_filename")
+    .select("event_id,storage_path,storage_provider,original_filename,events!inner(owner_id)")
+    .eq("events.owner_id", actor.userId)
     .eq("id", photoId)
     .maybeSingle();
 
@@ -246,12 +249,13 @@ export async function createAdminPhotoUrl(
 export async function deletePhotoAsAdmin(
   untrustedPhotoId: string,
 ): Promise<void> {
-  await requireAdmin();
+  const actor = await requireAdmin();
   const photoId = validatePhotoId(untrustedPhotoId);
   const supabase = createAdminSupabaseClient();
   const { data: photo, error: photoError } = await supabase
     .from("photos")
-    .select("storage_path,storage_provider")
+    .select("event_id,storage_path,storage_provider,events!inner(owner_id)")
+    .eq("events.owner_id", actor.userId)
     .eq("id", photoId)
     .maybeSingle();
 
@@ -270,6 +274,7 @@ export async function deletePhotoAsAdmin(
   const { error: databaseError } = await supabase
     .from("photos")
     .delete()
+    .eq("event_id", photo.event_id)
     .eq("id", photoId);
 
   if (databaseError) {
